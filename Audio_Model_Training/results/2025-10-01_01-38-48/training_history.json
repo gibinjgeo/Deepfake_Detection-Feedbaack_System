@@ -1,0 +1,149 @@
+{
+  "metadata": {
+    "datetime_start": "2025-10-01T01:38:51.596292",
+    "datetime_end": "2025-10-01T02:07:15.973058",
+    "wall_clock_total_s": 1704.3767755031586,
+    "args": {
+      "data_root": ".",
+      "backbone": "cnn_small",
+      "sample_rate": 16000,
+      "duration": 4.0,
+      "n_mels": 64,
+      "batch_size": 16,
+      "workers": 8,
+      "epochs": 12,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "early_stop": 4,
+      "output": "best_audio_model.pt",
+      "seed": 42,
+      "no_amp": false,
+      "results_dir": "results"
+    },
+    "device": "cuda",
+    "pytorch": "2.7.1+cu118",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "classes": [
+      "fake",
+      "real"
+    ],
+    "num_classes": 2,
+    "best_epoch": 5,
+    "best_val_acc": 0.9973017362740497,
+    "final_test": {
+      "loss": 0.008951959485965064,
+      "accuracy": 0.9966568914956012,
+      "macro_precision": 0.9966662472609282,
+      "macro_recall": 0.9966568914956011,
+      "macro_f1": 0.996656875751887,
+      "per_class_precision": [
+        0.9988218661639963,
+        0.9945106283578603
+      ],
+      "per_class_recall": [
+        0.9944868035190616,
+        0.9988269794721407
+      ],
+      "per_class_f1": [
+        0.9966496208781521,
+        0.9966641306256219
+      ],
+      "confusion_matrix": [
+        [
+          8478,
+          47
+        ],
+        [
+          10,
+          8515
+        ]
+      ],
+      "roc_auc": 0.9999618991924734,
+      "average_precision": 0.999962313185611
+    }
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.1320091946120379,
+      "train_acc": 0.945494537722707,
+      "val_loss": 0.03423091366493615,
+      "val_acc": 0.9878578132332239,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.04930990786594907,
+      "train_acc": 0.981134980570423,
+      "val_loss": 0.021333511105874017,
+      "val_acc": 0.9924331299859221,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.03277731041412161,
+      "train_acc": 0.9878070239753648,
+      "val_loss": 0.025397339842198233,
+      "val_acc": 0.993899577663069,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.026455146675192373,
+      "train_acc": 0.9905344966639783,
+      "val_loss": 0.03146975752192246,
+      "val_acc": 0.9874472078836227,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.020719593170320405,
+      "train_acc": 0.992756067160349,
+      "val_loss": 0.009444723578618131,
+      "val_acc": 0.9973017362740497,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.01785425352240878,
+      "train_acc": 0.9933866119216951,
+      "val_loss": 0.01130091585326346,
+      "val_acc": 0.9968911309244486,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.015211423141388814,
+      "train_acc": 0.9946770291077058,
+      "val_loss": 0.011026667568375496,
+      "val_acc": 0.9969497888315345,
+      "lr": 0.0001,
+      "note": ""
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.013738537348647894,
+      "train_acc": 0.9951316078891415,
+      "val_loss": 0.010671995645252631,
+      "val_acc": 0.9965391834819334,
+      "lr": 5e-05,
+      "note": ""
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.006957736131740951,
+      "train_acc": 0.9977051103453333,
+      "val_loss": 0.019659409912854114,
+      "val_acc": 0.9936062881276396,
+      "lr": 5e-05,
+      "note": ""
+    }
+  ]
+}

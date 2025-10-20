@@ -1,0 +1,87 @@
+================================================================================
+Log file: /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/results/2025-10-01_01-38-48/audio_training_results.txt
+Start time: 2025-10-01T01:38:48.509689
+================================================================================
+Device: cuda | PyTorch: 2.7.1+cu118 | CUDA available: True
+GPU name: NVIDIA GeForce RTX 3050 Laptop GPU
+Args: {'data_root': '.', 'backbone': 'cnn_small', 'sample_rate': 16000, 'duration': 4.0, 'n_mels': 64, 'batch_size': 16, 'workers': 8, 'epochs': 12, 'lr': 0.0001, 'weight_decay': 0.0001, 'early_stop': 4, 'output': 'best_audio_model.pt', 'seed': 42, 'no_amp': False, 'results_dir': 'results'}
+[RESULTS DIR] /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/results/2025-10-01_01-38-48
+[DATA ROOT arg] /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2
+[CHECK] train: False | training: False
+[CHECK] val:   False   | validation: False
+[CHECK] test:  False  | testing: False
+Classes: ['fake', 'real']
+[DATASET] ✅ train root: /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train
+[DATASET] ✅ val root:   /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val
+[DATASET] ✅ test root:  /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/test
+Training samples: 136390 | Validation: 17048 | Testing: 17050
+Model: cnn_small | Trainable params: 1,438,658
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 01/12 | Train 0.1320/0.9455 | Val 0.0342/0.9879 | LR 1.00e-04 | time 188.3s
+✅ Saved BEST to results/2025-10-01_01-38-48/best_audio_model.pt (best_val_acc=0.9879, epoch=1)
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 02/12 | Train 0.0493/0.9811 | Val 0.0213/0.9924 | LR 1.00e-04 | time 181.5s
+✅ Saved BEST to results/2025-10-01_01-38-48/best_audio_model.pt (best_val_acc=0.9924, epoch=2)
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 03/12 | Train 0.0328/0.9878 | Val 0.0254/0.9939 | LR 1.00e-04 | time 189.4s
+✅ Saved BEST to results/2025-10-01_01-38-48/best_audio_model.pt (best_val_acc=0.9939, epoch=3)
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 04/12 | Train 0.0265/0.9905 | Val 0.0315/0.9874 | LR 1.00e-04 | time 187.9s
+No improvement. Early-stop patience left: 3
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 05/12 | Train 0.0207/0.9928 | Val 0.0094/0.9973 | LR 1.00e-04 | time 187.1s
+✅ Saved BEST to results/2025-10-01_01-38-48/best_audio_model.pt (best_val_acc=0.9973, epoch=5)
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 06/12 | Train 0.0179/0.9934 | Val 0.0113/0.9969 | LR 1.00e-04 | time 187.4s
+No improvement. Early-stop patience left: 3
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 07/12 | Train 0.0152/0.9947 | Val 0.0110/0.9969 | LR 1.00e-04 | time 187.1s
+No improvement. Early-stop patience left: 2
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 08/12 | Train 0.0137/0.9951 | Val 0.0107/0.9965 | LR 5.00e-05 | time 188.2s
+No improvement. Early-stop patience left: 1
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file30959.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3: Failed to open the input "/home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/train/fake/file19851.mp3" (Invalid argument).. Using zero audio.
+[WARN] Failed to load /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/Unified_Audio_Dataset/val/real/file15440.wav_16k.wav_norm.wav_mono.wav_silence.wav: Failed to decode audio.. Using zero audio.
+Epoch 09/12 | Train 0.0070/0.9977 | Val 0.0197/0.9936 | LR 5.00e-05 | time 187.6s
+No improvement. Early-stop patience left: 0
+⛔ Early stopping triggered.
+
+Rolling back to best checkpoint for final evaluation...
+Rolled back to epoch: 5, best_val_acc=0.9973017362740497
+
+=== TEST RESULTS ===
+Loss: 0.0090 | Acc: 0.9967
+Macro Precision: 0.9967 | Macro Recall: 0.9967 | Macro F1: 0.9967
+Class 'fake': P=0.9988 R=0.9945 F1=0.9966
+Class 'real': P=0.9945 R=0.9988 F1=0.9967
+
+Confusion matrix (rows=true, cols=pred):
+[[8478   47]
+ [  10 8515]]
+
+Extra metrics (binary): ROC-AUC=1.0000 | Average Precision (AUPRC)=1.0000
+
+Saved per-epoch CSV: results/2025-10-01_01-38-48/training_history.csv
+Saved full history JSON: results/2025-10-01_01-38-48/training_history.json
+Saved class map JSON: /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/class_to_idx_audio.json
+Saved best checkpoint: /home/ammulap/PycharmProjects/IT_thesis/Audio/Model_v2/results/2025-10-01_01-38-48/best_audio_model.pt
+
+Total elapsed: 1707.49s
+================================================================================
