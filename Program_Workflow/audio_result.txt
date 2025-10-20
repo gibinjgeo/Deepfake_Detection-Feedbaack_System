@@ -1,0 +1,13 @@
+# AUDIO RESULT
+Source video: test-1.mp4
+Audio file:   outputs/audio/test-1.mp3
+
+Prediction: real
+Confidence (prob): 0.898756
+
+## Timing
+Prediction time: 0.176255 seconds
+
+Probability distribution:
+  - real: 0.898756
+  - fake: 0.101244

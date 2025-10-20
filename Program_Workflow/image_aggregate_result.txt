@@ -1,0 +1,71 @@
+# IMAGE PER-FRAME PREDICTIONS (CROPPED)
+# Source video: test-1.mp4
+# Cropped frames dir:   outputs/frames_cropped/test-1
+# Total frames extracted: 276
+# Cropped frames listed:  13
+
+## Per-frame predictions (path, label, confidence, top-k)
+outputs/frames_cropped/test-1/test-1_024.jpg
+  Prediction: real
+  Confidence (prob): 0.999934
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_044.jpg
+  Prediction: real
+  Confidence (prob): 0.999939
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_086.jpg
+  Prediction: real
+  Confidence (prob): 0.999934
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_087.jpg
+  Prediction: real
+  Confidence (prob): 0.999933
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_090.jpg
+  Prediction: real
+  Confidence (prob): 0.999935
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_108.jpg
+  Prediction: real
+  Confidence (prob): 0.999919
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_111.jpg
+  Prediction: real
+  Confidence (prob): 0.999927
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_125.jpg
+  Prediction: real
+  Confidence (prob): 0.999927
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_171.jpg
+  Prediction: real
+  Confidence (prob): 0.999940
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_216.jpg
+  Prediction: real
+  Confidence (prob): 0.999934
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_222.jpg
+  Prediction: real
+  Confidence (prob): 0.999942
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_245.jpg
+  Prediction: real
+  Confidence (prob): 0.999939
+  Top-2: real=1.000, fake=0.000
+
+outputs/frames_cropped/test-1/test-1_258.jpg
+  Prediction: real
+  Confidence (prob): 0.999931
+  Top-2: real=1.000, fake=0.000

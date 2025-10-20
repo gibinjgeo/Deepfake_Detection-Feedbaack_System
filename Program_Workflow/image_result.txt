@@ -1,0 +1,13 @@
+# IMAGE AGGREGATE RESULT (CROPPED)
+# Source video: test-1.mp4
+# Cropped frames dir:   outputs/frames_cropped/test-1
+# Total frames extracted: 276
+# Sampled frames attempted: 100
+# Cropped frames used:  13
+
+## Aggregate (Top-1 mean confidence)
+Mean top-1 confidence across cropped frames: 0.999933
+
+## Timing
+Total prediction time (cropped frames): 0.256127 seconds
+Average prediction time per frame:      0.019702 seconds
