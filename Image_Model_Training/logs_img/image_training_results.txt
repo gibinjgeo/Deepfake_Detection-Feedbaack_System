@@ -1,0 +1,57 @@
+================================================================================
+Log file: /home/ammulap/PycharmProjects/IT_thesis/Image/Large_Dataset_v2/logs_img/image_training_results.txt
+Start time: 2025-09-23T13:23:53.502663
+================================================================================
+Device: cuda | PyTorch: 2.7.1+cu118 | CUDA available: True
+GPU name: NVIDIA GeForce RTX 3050 Laptop GPU
+Args: {'data_root': '.', 'backbone': 'efficientnet_b0', 'img_size': 224, 'batch_size': 16, 'workers': 8, 'epochs': 12, 'lr': 0.0001, 'weight_decay': 0.0001, 'early_stop': 4, 'output': 'best_image_model.pt', 'seed': 42, 'log_dir': 'logs_img', 'no_amp': False, 'mem_stats': False}
+Classes: ['fake', 'real']
+Training samples: 567462 | Validation: 71422 | Testing: 71426
+Model: efficientnet_b0 | Trainable params: 4,010,110
+Epoch 01/12 | Train 0.0883/0.9660 | Val 0.0246/0.9909 | LR 1.00e-04 | epoch 1846.0s | val_eval 80.3s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9909, epoch=1)
+Epoch 02/12 | Train 0.0390/0.9856 | Val 0.0189/0.9926 | LR 1.00e-04 | epoch 1870.4s | val_eval 79.8s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9926, epoch=2)
+Epoch 03/12 | Train 0.0299/0.9887 | Val 0.0150/0.9940 | LR 1.00e-04 | epoch 1969.6s | val_eval 79.4s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9940, epoch=3)
+Epoch 04/12 | Train 0.0252/0.9905 | Val 0.0153/0.9939 | LR 1.00e-04 | epoch 1848.7s | val_eval 81.8s
+No improvement. Early-stop patience left: 3
+Epoch 05/12 | Train 0.0215/0.9918 | Val 0.0131/0.9948 | LR 1.00e-04 | epoch 1843.6s | val_eval 81.1s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9948, epoch=5)
+Epoch 06/12 | Train 0.0196/0.9926 | Val 0.0121/0.9953 | LR 1.00e-04 | epoch 1837.0s | val_eval 79.0s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9953, epoch=6)
+Epoch 07/12 | Train 0.0175/0.9933 | Val 0.0138/0.9952 | LR 1.00e-04 | epoch 1834.3s | val_eval 78.5s
+No improvement. Early-stop patience left: 3
+Epoch 08/12 | Train 0.0162/0.9939 | Val 0.0119/0.9954 | LR 1.00e-04 | epoch 1831.9s | val_eval 78.7s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9954, epoch=8)
+Epoch 09/12 | Train 0.0150/0.9943 | Val 0.0138/0.9958 | LR 1.00e-04 | epoch 1831.8s | val_eval 79.3s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9958, epoch=9)
+Epoch 10/12 | Train 0.0138/0.9949 | Val 0.0135/0.9956 | LR 1.00e-04 | epoch 1830.8s | val_eval 78.5s
+No improvement. Early-stop patience left: 3
+Epoch 11/12 | Train 0.0130/0.9951 | Val 0.0118/0.9960 | LR 1.00e-04 | epoch 1830.8s | val_eval 79.0s
+✅ Saved BEST to best_image_model.pt (best_val_acc=0.9960, epoch=11)
+Epoch 12/12 | Train 0.0122/0.9955 | Val 0.0122/0.9959 | LR 1.00e-04 | epoch 1831.0s | val_eval 78.9s
+No improvement. Early-stop patience left: 3
+
+Rolling back to best checkpoint for final evaluation...
+Rolled back to epoch: 11, best_val_acc=0.995995631598107
+
+=== TEST RESULTS ===
+Loss: 0.0111 | Acc: 0.9961 | test_eval 84.5s
+Macro Precision: 0.9961 | Macro Recall: 0.9961 | Macro F1: 0.9961
+Class 'fake': P=0.9973 R=0.9948 F1=0.9960
+Class 'real': P=0.9948 R=0.9973 F1=0.9961
+
+Confusion matrix (rows=true, cols=pred):
+[[35527   186]
+ [   96 35617]]
+
+Extra (binary): ROC-AUC=0.9999 | Average Precision=0.9998
+
+Saved per-epoch CSV: logs_img/training_history_img.csv
+Saved epoch log CSV: logs_img/epoch_log.csv
+Saved batch log CSV: logs_img/batch_log.csv
+Saved full metadata JSON: logs_img/training_history_img.json
+
+Total elapsed: 23248.88s
+================================================================================
