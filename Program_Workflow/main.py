@@ -12,6 +12,7 @@ from models_loader import (
 from video_io import split_video_to_mp3_and_frames
 from feedback import FBConfig, run_feedback_interactive
 from Facedetection import FaceDetector, crop_to_224
+from retrain_monitor import maybe_auto_retrain, print_status
 
 
 # ------------------------- CLI settings -------------------------
@@ -281,6 +282,26 @@ def main():
             )
         except Exception as e:
             print(f"[FEEDBACK] Error: {e}")
+
+    # -------------------- AUTO FINE-TUNE (runs after every feedback session) ----
+    # Checks if enough labelled samples have accumulated and fine-tunes
+    # the models automatically when thresholds are met.
+    print("\n[MONITOR] Checking feedback dataset thresholds...")
+    print_status()
+    monitor_results = maybe_auto_retrain(mode="both")
+    for mod, res in monitor_results.items():
+        if res.get("skipped"):
+            print(f"[MONITOR] {mod.upper()}: {res['reason']}")
+        elif res.get("improved"):
+            print(
+                f"[MONITOR] {mod.upper()}: Model updated "
+                f"(val acc {res['val_acc_old']:.4f} -> {res['val_acc_new']:.4f})"
+            )
+        else:
+            print(
+                f"[MONITOR] {mod.upper()}: Fine-tuned but no improvement — keeping old model "
+                f"({res['val_acc_old']:.4f} -> {res['val_acc_new']:.4f})"
+            )
 
 
 if __name__ == "__main__":
