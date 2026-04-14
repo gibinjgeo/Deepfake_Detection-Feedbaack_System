@@ -86,9 +86,8 @@ def _extract_audio_mp3(
                 str(out_path),
                 codec="mp3",
                 bitrate=bitrate,
-                # You could set fps=16000 here, but the model's loader
-                # resamples anyway; leaving default often preserves quality.
-                verbose=False,
+                # MoviePy 2.x removed the 'verbose' parameter; logger=None
+                # suppresses all output without it.
                 logger=None,
             )
             if out_path.exists() and out_path.stat().st_size > 0:

@@ -112,7 +112,7 @@ def load_audio_model(
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     classes: List[str] = ckpt["classes"]
     model_name = ckpt.get("model_name", "cnn_small")
     sr = int(ckpt.get("sample_rate", 16000))
@@ -226,7 +226,7 @@ def load_image_model(
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     model_name = ckpt.get("model_name", "resnet18")
     img_size = int(ckpt.get("img_size", 224))
     state_dict = ckpt["state_dict"]
