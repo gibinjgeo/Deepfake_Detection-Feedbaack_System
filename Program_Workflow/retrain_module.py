@@ -1,5 +1,5 @@
 """
-auto_retrain_monitor.py
+retrain_module.py
 =======================
 Watches the feedback dataset and automatically fine-tunes the audio and image
 models when enough labelled samples have accumulated.
@@ -37,17 +37,17 @@ Pipeline
 Usage
 -----
   # Status check only (no changes made)
-  python auto_retrain_monitor.py --check
+  python retrain_module.py --check
 
   # Auto-retrain if thresholds are met
-  python auto_retrain_monitor.py
+  python retrain_module.py
 
   # Retrain one modality only
-  python auto_retrain_monitor.py --mode audio
-  python auto_retrain_monitor.py --mode image
+  python retrain_module.py --mode audio
+  python retrain_module.py --mode image
 
   # Force fine-tune even if below threshold
-  python auto_retrain_monitor.py --force
+  python retrain_module.py --force
 
   # Called from main.py after every feedback session
   from auto_retrain_monitor import maybe_auto_retrain

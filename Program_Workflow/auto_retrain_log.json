@@ -1,0 +1,25 @@
+[
+  {
+    "timestamp": "2026-04-15T10:21:54.250976",
+    "mode": "both",
+    "force": false,
+    "results": {
+      "audio": {
+        "skipped": true,
+        "reason": "Audio below threshold. Need {'real': 8, 'fake': 9} more per class.",
+        "counts": {
+          "real": 2,
+          "fake": 1
+        }
+      },
+      "image": {
+        "skipped": true,
+        "reason": "Image below threshold. Need {'real': 0, 'fake': 10} more per class.",
+        "counts": {
+          "real": 20,
+          "fake": 10
+        }
+      }
+    }
+  }
+]

@@ -1,61 +1,107 @@
 # ============================================================
 # Deepfake Detection & Feedback System — Python dependencies
-# Python 3.12 | Tested on Ubuntu with NVIDIA RTX 3050
-# ============================================================
-
-# --- PyTorch (CUDA 12.1 build for NVIDIA GPU) ---
-# For CPU-only machines replace these three lines with:
+# Python 3.12 | Tested on Ubuntu 22.04 with NVIDIA RTX 3050
+# CUDA 12.1 | Driver >= 525.x
+#
+# Install (GPU):
+#   pip install -r requirements.txt
+#
+# Install (CPU-only — replace the three torch lines first):
 #   torch==2.5.1
 #   torchvision==0.20.1
 #   torchaudio==2.5.1
+# ============================================================
+
+
+# ── PyTorch (CUDA 12.1) ──────────────────────────────────────────────────────
+# Remove --index-url and use plain versions for CPU-only machines.
 --index-url https://download.pytorch.org/whl/cu121
 torch==2.5.1+cu121
 torchvision==0.20.1+cu121
 torchaudio==2.5.1+cu121
 
-# --- Core ML / vision ---
+
+# ── Core ML / Computer Vision ────────────────────────────────────────────────
 numpy==2.4.3
-pillow==11.3.0
-opencv-python==4.13.0.92
+pillow==11.3.0                  # PIL image loading (ImageFile, Image)
+opencv-python==4.13.0.92        # cv2 — frame reading, face cropping
 opencv-contrib-python==4.13.0.92
-mediapipe==0.10.33
-scikit-learn==1.8.0
-scipy==1.17.1
+mediapipe==0.10.33              # BlazeFace face detection (Tasks API)
+scikit-learn==1.8.0             # Metrics: P/R/F1, confusion matrix, ROC-AUC
+scipy==1.17.1                   # Signal processing utilities
 
-# --- Video / audio processing ---
-moviepy==2.2.1
-imageio==2.37.3
-imageio-ffmpeg==0.6.0
-tqdm==4.67.3
 
-# --- MoviePy / general utilities ---
-decorator==5.2.1
-proglog==0.1.12
-python-dotenv==1.2.2
+# ── Video / Audio Processing ─────────────────────────────────────────────────
+moviepy==2.2.1                  # Video splitting: frames + audio extraction
+imageio==2.37.3                 # imageio[ffmpeg] plugin backend
+imageio-ffmpeg==0.6.0           # Bundled ffmpeg binary for imageio
+tqdm==4.67.3                    # Progress bars during frame extraction
 
-# --- MediaPipe dependencies ---
-absl-py==2.4.0
-flatbuffers==25.12.19
-matplotlib==3.10.8
-sounddevice==0.5.5
 
-# --- scikit-learn / scipy dependencies ---
-joblib==1.5.3
-threadpoolctl==3.6.0
+# ── Streamlit GUI ────────────────────────────────────────────────────────────
+streamlit==1.56.0               # Web GUI (app.py)
+pandas==3.0.2                   # DataFrame for feedback log viewer
+altair==6.0.0                   # Declarative charts (Streamlit built-in)
+pyarrow==23.0.1                 # Columnar data for st.dataframe
+watchdog==6.0.0                 # File watcher for Streamlit hot-reload
+tornado==6.5.5                  # Async server backend for Streamlit
+blinker==1.9.0                  # Signal/event system used by Streamlit
+cachetools==7.0.5               # Caching utilities
+pydeck==0.9.1                   # Map rendering (Streamlit dep)
+click==8.3.2                    # CLI framework (Streamlit dep)
+toml==0.10.2                    # TOML config parsing (Streamlit dep)
+protobuf==7.34.1                # Serialization (Streamlit + MediaPipe)
+narwhals==2.19.0                # Dataframe compatibility layer (Altair/Streamlit)
+gitpython==3.1.46               # Git info display in Streamlit footer
+gitdb==4.0.12                   # GitPython backend
+smmap==5.0.3                    # Memory-mapped file access (GitPython dep)
+attrs==26.1.0                   # Attribute classes (jsonschema dep)
+jsonschema==4.26.0              # JSON schema validation (Altair dep)
+referencing==0.37.0             # JSON reference resolution (jsonschema dep)
+rpds-py==0.30.0                 # Persistent data structures (jsonschema dep)
 
-# --- PyTorch dependencies ---
-filelock==3.25.2
-fsspec==2026.2.0
-jinja2==3.1.6
-markupsafe==3.0.3
-networkx==3.6.1
-sympy==1.13.1
-mpmath==1.3.0
-typing_extensions==4.15.0
-setuptools==70.2.0
-triton==3.1.0
 
-# --- NVIDIA CUDA libraries (installed automatically with torch+cu121) ---
+# ── HTTP / Network ────────────────────────────────────────────────────────────
+requests==2.33.1                # HTTP client (MediaPipe model download, Streamlit)
+certifi==2026.2.25              # Mozilla CA bundle
+charset-normalizer==3.4.7       # Encoding detection (requests dep)
+idna==3.11                      # Internationalized domain names (requests dep)
+urllib3==2.6.3                  # HTTP connection pooling (requests dep)
+
+
+# ── MoviePy / Video utilities ────────────────────────────────────────────────
+decorator==5.2.1                # Function decorator utilities (MoviePy dep)
+proglog==0.1.12                 # Progress logging (MoviePy dep)
+python-dotenv==1.2.2            # .env file loading
+
+
+# ── MediaPipe dependencies ────────────────────────────────────────────────────
+absl-py==2.4.0                  # Google Abseil Python (MediaPipe dep)
+flatbuffers==25.12.19           # Serialization for TFLite models
+matplotlib==3.10.8              # Plotting (MediaPipe visualisation, training curves)
+sounddevice==0.5.5              # Audio I/O (MediaPipe dep)
+
+
+# ── scikit-learn / scipy dependencies ────────────────────────────────────────
+joblib==1.5.3                   # Parallel processing (scikit-learn dep)
+threadpoolctl==3.6.0            # Thread pool control (scikit-learn dep)
+
+
+# ── PyTorch ecosystem dependencies ───────────────────────────────────────────
+filelock==3.25.2                # Atomic file locking (PyTorch hub cache)
+fsspec==2026.2.0                # Filesystem abstraction (PyTorch datasets)
+jinja2==3.1.6                   # Templating (PyTorch profiler reports)
+markupsafe==3.0.3               # HTML escaping (Jinja2 dep)
+networkx==3.6.1                 # Graph algorithms (PyTorch ONNX export)
+sympy==1.13.1                   # Symbolic math (PyTorch tracing)
+mpmath==1.3.0                   # Arbitrary-precision arithmetic (SymPy dep)
+typing_extensions==4.15.0       # Backported typing hints
+setuptools==70.2.0              # Package utilities
+triton==3.1.0                   # GPU kernel compiler (torch.compile backend)
+
+
+# ── NVIDIA CUDA 12.1 runtime libraries ───────────────────────────────────────
+# Installed automatically alongside torch+cu121; listed here for reproducibility.
 nvidia-cublas-cu12==12.1.3.1
 nvidia-cuda-cupti-cu12==12.1.105
 nvidia-cuda-nvrtc-cu12==12.1.105
@@ -69,9 +115,8 @@ nvidia-nccl-cu12==2.21.5
 nvidia-nvjitlink-cu12==12.9.86
 nvidia-nvtx-cu12==12.1.105
 
-# --- Misc ---
-cffi==2.0.0
-pycparser==3.0
+
+# ── Matplotlib / plot dependencies ───────────────────────────────────────────
 contourpy==1.3.3
 cycler==0.12.1
 fonttools==4.62.1
@@ -80,3 +125,8 @@ packaging==26.0
 pyparsing==3.3.2
 python-dateutil==2.9.0.post0
 six==1.17.0
+
+
+# ── Misc system utilities ─────────────────────────────────────────────────────
+cffi==2.0.0                     # C foreign function interface
+pycparser==3.0                  # C parser (cffi dep)

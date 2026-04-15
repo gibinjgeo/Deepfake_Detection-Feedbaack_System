@@ -12,7 +12,7 @@ from models_loader import (
 from video_io import split_video_to_mp3_and_frames
 from feedback import FBConfig, run_feedback_interactive
 from Facedetection import FaceDetector, crop_to_224
-from retrain_monitor import maybe_auto_retrain, print_status
+from retrain_module import maybe_auto_retrain, print_status
 
 
 # ------------------------- CLI settings -------------------------
@@ -101,7 +101,14 @@ def crop_face_file_to_224(detector: FaceDetector, src_path: Path, dst_path: Path
 def main():
     args = parse_args()
 
+    # If no video path was passed on the command line, prompt the user
     VIDEO_PATH = args.video
+    if VIDEO_PATH == "test-1.mp4" and not Path(VIDEO_PATH).exists():
+        VIDEO_PATH = input("Enter path to video file: ").strip().strip('"').strip("'")
+    if not Path(VIDEO_PATH).exists():
+        print(f"[ERROR] Video file not found: {VIDEO_PATH}")
+        return
+
     OUT_DIR = args.out_dir
     IMG_FPS = args.fps
     IMG_EXT = "jpg"

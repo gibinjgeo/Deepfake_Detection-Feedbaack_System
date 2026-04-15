@@ -6,7 +6,7 @@ Prediction: real
 Confidence (prob): 1.000000
 
 ## Timing
-Prediction time: 0.380992 seconds
+Prediction time: 0.668554 seconds
 
 Probability distribution:
   - real: 1.000000

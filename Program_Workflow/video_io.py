@@ -29,7 +29,6 @@ import shlex
 from PIL import Image, ImageFile
 
 # MoviePy v2 changed imports; prefer new path, fall back for v1
-# MoviePy v2 changed imports; prefer new path, fall back for v1
 try:
     from moviepy import VideoFileClip  # MoviePy >= 2.0
 except ImportError:
@@ -93,7 +92,7 @@ def _extract_audio_mp3(
             if out_path.exists() and out_path.stat().st_size > 0:
                 return out_path
     except Exception as e:
-        print(f"[AUDIO] MoviePy write failed ({e}). Trying ffmpeg fallbackÃ¢â‚¬Â¦")
+        print(f"[AUDIO] MoviePy write failed ({e}). Trying ffmpeg fallback...")
 
     # 2) FFmpeg fallback (requires source file path)
     if src_video_path and src_video_path.exists():
@@ -112,7 +111,7 @@ def _extract_audio_mp3(
             tail = proc.stderr.decode(errors="ignore").splitlines()[-10:]
             print("[AUDIO] ffmpeg stderr (tail):\n" + "\n".join(tail))
 
-    # If we reach here, thereÃ¢â‚¬â„¢s no extractable audio
+    # If we reach here, there's no extractable audio
     raise RuntimeError("No audio stream found or extraction failed.")
 
 def _extract_frames(
@@ -206,8 +205,8 @@ def split_video_to_mp3_and_frames(
         if e <= s:
             clip.close()
             raise ValueError("Invalid subclip: end time must be greater than start time.")
-        clip = clip.subclip(s, e)
-        print(f"Subclip: {_hhmmss(s)} Ã¢â€ â€™ {_hhmmss(e)} (len {_hhmmss(e - s)})")
+        clip = clip.subclipped(s, e)
+        print(f"Subclip: {_hhmmss(s)} -> {_hhmmss(e)} (len {_hhmmss(e - s)})")
     else:
         print(f"Full clip length: {_hhmmss(full_dur)}")
 
@@ -221,7 +220,7 @@ def split_video_to_mp3_and_frames(
             bitrate=bitrate,
             src_video_path=vpath,
         )
-        print(f"[AUDIO] Saved Ã¢â€ â€™ {audio_path}")
+        print(f"[AUDIO] Saved -> {audio_path}")
     except Exception as ex:
         print(f"[AUDIO] Skipped: {ex}")
         audio_path = None
@@ -233,9 +232,9 @@ def split_video_to_mp3_and_frames(
         frames_dir, n_frames = _extract_frames(
             clip, out_frames_dir, base_name, img_fps=img_fps, img_ext=img_ext, quality=quality
         )
-        print(f"[FRAMES] Saved Ã¢â€ â€™ {n_frames} files in {frames_dir}")
+        print(f"[FRAMES] Saved -> {n_frames} files in {frames_dir}")
     else:
-        print("[FRAMES] img_fps <= 0 Ã¢â€ â€™ skipping frame extraction.")
+        print("[FRAMES] img_fps <= 0 -> skipping frame extraction.")
 
     clip.close()
     return audio_path, frames_dir, n_frames

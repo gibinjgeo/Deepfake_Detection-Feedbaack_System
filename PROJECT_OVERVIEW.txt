@@ -1,0 +1,1070 @@
+================================================================================
+  DEEPFAKE DETECTION & FEEDBACK SYSTEM
+  Comprehensive Technical Overview — Research Reference Document
+================================================================================
+
+Last Updated: April 2026
+Project Path: Deepfake_Detection-Feedbaack_System/
+Primary Language: Python 3.12
+Hardware Target: NVIDIA GPU (CUDA 12.1), CPU fallback supported
+
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+This is an end-to-end deepfake detection system with a human-in-the-loop
+feedback mechanism for continuous model improvement. The system processes
+video files to detect deepfakes through two independent modalities:
+
+  (1) Audio Analysis  — detects manipulation artifacts in the audio stream
+  (2) Image Analysis  — detects visual manipulation in face regions of frames
+
+The pipeline enables interactive dataset creation through user feedback and
+supports automatic model retraining (fine-tuning or full retrain) when
+sufficient labeled data accumulates from the feedback loop.
+
+High-Level System Phases:
+  1. Video ingestion & preprocessing
+  2. Face detection & cropping
+  3. Feature extraction (mel-spectrograms / face crops)
+  4. Inference via trained CNN models
+  5. Interactive user feedback & dataset labeling
+  6. Threshold-based automatic model fine-tuning
+  7. Optional full retraining from accumulated feedback data
+
+
+================================================================================
+2. DIRECTORY STRUCTURE
+================================================================================
+
+Deepfake_Detection-Feedbaack_System/
+|
+|-- Program_Workflow/               # Runtime & inference code (main pipeline)
+|   |-- main.py                     # Entry point — CLI, orchestrates full pipeline
+|   |-- video_io.py                 # Video splitting: frames + audio extraction
+|   |-- Facedetection.py            # MediaPipe face detection + cropping
+|   |-- models_loader.py            # Model definitions, loading, inference
+|   |-- feedback.py                 # Interactive labeling & dataset creation
+|   |-- auto_retrain_monitor.py     # Threshold-based fine-tuning trigger
+|   |-- retrain.py                  # Full retraining CLI from feedback data
+|   |-- dataset_creation/           # Accumulated feedback samples (runtime)
+|   |   |-- audio/real/ *.mp3
+|   |   |-- audio/fake/ *.mp3
+|   |   |-- frames/real/ *.jpg
+|   |   |-- frames/fake/ *.jpg
+|   |   |-- feedback_log.csv
+|   |   `-- .counters/              # Sequential naming state files
+|   |-- outputs/                    # Inference result files (runtime)
+|   |-- best_audio_model.pt         # Trained audio model checkpoint
+|   `-- best_model.pt               # Trained image model checkpoint
+|
+|-- Audio_Model_Training/           # Audio model training pipeline
+|   |-- Train.py                    # Full training script for SmallAudioCNN
+|   |-- Run_model.py                # CLI inference tool for audio
+|   |-- dataset_creation.py         # Unified audio dataset builder
+|   `-- Unified_Audio_Dataset/      # Organized train/val/test splits
+|       |-- train/real/ *.mp3
+|       |-- train/fake/ *.mp3
+|       |-- val/real/ *.mp3
+|       |-- val/fake/ *.mp3
+|       |-- test/real/ *.mp3
+|       `-- test/fake/ *.mp3
+|
+|-- Image_Model_Training/           # Image model training pipeline
+|   |-- Train_with_logs.py          # Full training script with rich logging
+|   |-- Testing.py                  # GUI-based batch prediction tool
+|   `-- logs_img/                   # Training logs and CSVs (runtime)
+|
+|-- requirements.txt                # Python dependencies
+|-- README.md                       # Project readme
+`-- PROJECT_OVERVIEW.txt            # This document
+
+
+================================================================================
+3. KEY DEPENDENCIES
+================================================================================
+
+Framework / Library      Version     Purpose
+-----------------------  ----------  ------------------------------------------
+Python                   3.12        Runtime
+PyTorch                  2.5.1+cu121 Deep learning (model training & inference)
+torchvision              0.20.1      Image transforms, pretrained models
+torchaudio               2.5.1       Audio loading, resampling, mel-spectrogram
+MediaPipe                0.10.33     Face detection (BlazeFace model)
+MoviePy                  2.2.1       Video/audio extraction (with ffmpeg)
+OpenCV (cv2)             4.13.0      Image reading, resizing, writing
+Pillow (PIL)             11.3.0      Image loading, truncation support
+scikit-learn             1.8.0       Evaluation metrics (P/R/F1, ROC-AUC)
+scipy                    1.17.1      Signal processing utilities
+imageio                  2.37.3      ffmpeg plugin (fallback video processing)
+
+CUDA / GPU:
+  - Primary: CUDA 12.1 (NVIDIA GPU required for AMP training)
+  - Fallback: CPU inference supported for all modules
+
+
+================================================================================
+4. COMPLETE SYSTEM WORKFLOW
+================================================================================
+
+Entry Point: python main.py <video.mp4> [options]
+
+------------------------------------------------------------
+PHASE 1: VIDEO INPUT & PREPROCESSING
+Module: video_io.py
+------------------------------------------------------------
+
+Function: split_video_to_mp3_and_frames(video_path, out_dir, ...)
+
+Steps:
+  1. Opens video with MoviePy (VideoFileClip)
+  2. Extracts audio track:
+       - Resamples to MONO, 16 kHz (ML-compatible)
+       - Encodes to MP3 at configurable bitrate (default 192k)
+       - Output: outputs/audio/<videoname>.mp3
+  3. Extracts video frames:
+       - Rate: configurable IMG_FPS (default 2.0 fps)
+       - Format: JPEG at 90% quality (configurable)
+       - Output: outputs/frames/<videoname>/*.jpg
+  4. Falls back to raw ffmpeg subprocess if MoviePy fails
+  5. Returns: (audio_path, frames_dir, frame_count)
+
+Configuration:
+  IMG_FPS        = 2.0          # Frames per second to extract
+  IMG_EXT        = "jpg"        # jpg | png | webp | bmp | tiff
+  JPEG_QUALITY   = 90           # Compression quality (1-95)
+  AUDIO_BITRATE  = "192k"       # MP3 quality
+  AUDIO_SR       = 16000        # Target sample rate (Hz)
+
+
+------------------------------------------------------------
+PHASE 2: FACE DETECTION & CROPPING
+Module: Facedetection.py
+------------------------------------------------------------
+
+Architecture: MediaPipe Tasks API
+  - Model: blaze_face_short_range.tflite (224 KB, auto-downloaded)
+  - Confidence threshold: 0.5 (configurable)
+
+Class: FaceDetector
+  - Context manager pattern (safe resource lifecycle)
+  - Method: detect_largest_face(image_bgr)
+      * Detects all faces in frame
+      * Returns bounding box (x, y, w, h) of the LARGEST face by area
+      * Returns None if no face detected
+
+Function: crop_to_224(image, bbox_xywh, margin=0.1)
+  - Adds 10% margin around bounding box
+  - Resizes to 224x224 (INTER_AREA for downsampling)
+  - Returns None if bounding box is invalid
+
+Processing:
+  - Iterates over extracted frames
+  - Skips frames where no face is detected (graceful degradation)
+  - Samples up to MAX_FRAMES=100 frames randomly
+  - Single shared FaceDetector instance (avoids reinitializing MediaPipe)
+  - Output: outputs/frames_cropped/<videoname>/*.jpg (224x224 face crops)
+
+
+------------------------------------------------------------
+PHASE 3: AUDIO INFERENCE
+Module: models_loader.py — SmallAudioCNN, _AudioPreproc, predict_audio()
+------------------------------------------------------------
+
+Preprocessing Pipeline (_AudioPreproc):
+  1. Load audio: torchaudio.load() with mono conversion
+  2. Resample to 16 kHz (lazy Resample object, cached per source-SR)
+  3. Segment to fixed 4.0-second windows (64,000 samples @ 16 kHz)
+       - Shorter clips: zero-padded to target length
+       - Longer clips: center-cropped (single segment) or
+                       sliding window (hop_seconds=2.0)
+  4. Compute Mel-Spectrogram:
+       n_fft=1024, hop_length=256, win_length=1024
+       n_mels=64, f_min=20 Hz, f_max=8000 Hz
+  5. Log-DB scaling: AmplitudeToDB(stype="power")
+  6. Per-sample standardization: (x - mean) / (std + 1e-6)
+
+Input Shape: (B, 1, 64, ~250)   [batch, channel, mel_bins, time_frames]
+
+Sliding Window Inference:
+  - For audio shorter than 4s: single inference pass
+  - For audio longer than 4s: overlapping windows (4s window, 2s hop)
+  - Logits averaged across all windows before softmax
+  - Prevents temporal boundary bias
+
+Output: {"label": str, "prob": float, "topk": [(label, prob), ...],
+          "dist": {label: prob}}
+
+
+------------------------------------------------------------
+PHASE 4: IMAGE INFERENCE
+Module: models_loader.py — load_image_model(), predict_image()
+------------------------------------------------------------
+
+Preprocessing:
+  Resize((224, 224))
+  → ToTensor()         [0, 1] float range
+  → Normalize(mean=[0.485, 0.456, 0.406],
+              std=[0.229, 0.224, 0.225])   [ImageNet-1K statistics]
+
+Inference:
+  - @torch.no_grad() for memory efficiency
+  - Forward pass on single 224x224 face crop
+  - Softmax over logits for probability distribution
+  - Top-k selection via heapq.nlargest()
+
+Aggregation Across Frames (main.py):
+  Function: aggregate_image_probs_top1_mean()
+  - Runs predict_image() on every cropped face frame
+  - Computes mean top-1 confidence score across all frames
+  - Returns per-frame predictions + aggregate summary
+  - Logs: frame path, label, confidence, top-k distribution, timing
+
+
+------------------------------------------------------------
+PHASE 5: INTERACTIVE FEEDBACK & DATASET CREATION
+Module: feedback.py — run_feedback_interactive()
+------------------------------------------------------------
+
+Configuration Dataclass: FBConfig
+  dataset_root     = "dataset_creation"
+  img_fps          = 2.0
+  img_ext          = "jpg"
+  jpg_quality      = 90
+  audio_bitrate    = "192k"
+  normalize_video  = True
+  video_height     = 720
+  video_fps        = 30
+  video_codec      = "libx264"
+  audio_codec      = "aac"
+  audio_sr         = 16000
+  audio_channels   = 1
+  seed             = 42
+  log_csv          = "feedback_log.csv"
+
+Workflow:
+  1. (Optional) Normalize video: reencode to 720p/30fps MP4 via FFmpeg
+  2. Display model predictions to user:
+       - Audio prediction + probability distribution
+       - Sample frame predictions (up to 10 frames)
+       - Aggregate mean probability across frames
+  3. Prompt user:
+       "Add this sample to dataset? [y/n]"
+       If yes:
+         "Label AUDIO as REAL or FAKE? [r/f]"
+         "Label FRAMES as REAL or FAKE? [r/f]"
+  4. Save labeled data:
+       Audio  → dataset_creation/audio/{real|fake}/a<N>.mp3
+       Frames → dataset_creation/frames/{real|fake}/f<N>.jpg
+       (Counter files track sequential numbering across sessions)
+  5. Append to feedback_log.csv:
+       Columns: timestamp, orig_video, audio_label, frames_label,
+                num_audio, num_frames, audio_saved_in, frames_saved_in
+
+Dataset Organization:
+  dataset_creation/
+  |-- audio/
+  |   |-- real/   a1.mp3, a2.mp3, ...
+  |   `-- fake/   a1.mp3, a2.mp3, ...
+  |-- frames/
+  |   |-- real/   f1.jpg, f2.jpg, ...
+  |   `-- fake/   f1.jpg, f2.jpg, ...
+  |-- feedback_log.csv
+  `-- .counters/
+      |-- audio_counter_real.txt
+      |-- audio_counter_fake.txt
+      |-- frames_counter_real.txt
+      `-- frames_counter_fake.txt
+
+Counter File System:
+  - Each counter file stores a plain integer (e.g., "42")
+  - Represents the NEXT available sequential ID
+  - Prevents filename collisions across feedback sessions
+  - Enables audit trail: file naming reflects insertion order
+
+
+------------------------------------------------------------
+PHASE 6: AUTOMATIC MODEL FINE-TUNING
+Module: auto_retrain_monitor.py — maybe_auto_retrain()
+------------------------------------------------------------
+
+Trigger Thresholds:
+  MIN_SAMPLES_PER_CLASS_AUDIO  = 10  (real + fake each)
+  MIN_SAMPLES_PER_CLASS_IMAGE  = 20  (real + fake each)
+
+Strategy: Fine-Tuning (NOT full retraining)
+  - Loads existing checkpoint (warm start)
+  - Preserves original learned weights
+  - Trains ONLY on feedback data (avoids catastrophic forgetting)
+  - Does NOT require access to original training data
+
+Audio Fine-Tuning (_finetune_audio()):
+  1. Create _AudioFeedbackDataset from dataset_creation/audio/
+  2. 80/20 random train/val split via random_split()
+  3. Optimizer: Adam(lr=1e-5)   [10x lower than original 1e-4]
+  4. Loss: CrossEntropyLoss
+  5. Epochs: 5, Batch size: 8
+  6. Evaluate every epoch (train_acc, val_acc)
+  7. Save only if val_acc_new >= val_acc_old
+  8. Backup old model: model_backups/best_audio_model_YYYYMMDD_HHMMSS.pt
+
+Image Fine-Tuning (_finetune_image()):
+  1. Frozen backbone strategy (prevents overfitting on small feedback data):
+       ResNet18:       Freeze conv1, bn1, layer1, layer2
+                       Fine-tune layer3, layer4, fc
+       EfficientNet-B0: Freeze features.0 through features.4
+                        Fine-tune features.5+, classifier
+  2. Augmented training transforms:
+       RandomHorizontalFlip + ColorJitter(brightness=0.1, contrast=0.1)
+  3. Non-augmented validation transforms (deterministic)
+  4. Same optimizer/loss/epoch/batch configuration as audio fine-tune
+  5. Save + backup logic identical to audio fine-tune
+
+CLI Options (auto_retrain_monitor.py):
+  --mode        {audio|image|both}  default: "both"
+  --check       Print status only, do not train
+  --force       Fine-tune even if below threshold
+  --min-audio   Minimum samples/class for audio  default: 10
+  --min-image   Minimum samples/class for image  default: 20
+
+Log Output: auto_retrain_log.json (per-run fine-tuning results)
+
+
+------------------------------------------------------------
+PHASE 7: FULL RETRAINING (OPTIONAL)
+Module: retrain.py
+------------------------------------------------------------
+
+Purpose: Complete model retraining on ALL accumulated feedback data
+  (distinct from fine-tuning — starts from ImageNet-1K weights)
+
+Workflow:
+  1. Collect all files from dataset_creation/{audio|frames}/{real,fake}/
+  2. Configurable train/val/test split:
+       Default: 70% train / 15% val / 15% test
+       Deterministic shuffle with seed
+  3. Create temporary split directories:
+       .retrain_split/audio/train|val|test/{real,fake}/
+       .retrain_split/frames/train|val|test/{real,fake}/
+  4. Launch training subprocess:
+       Audio: calls Audio_Model_Training/Train.py
+       Image: calls Image_Model_Training/Train_with_logs.py
+  5. Saves trained model back to Program_Workflow/best_*_model.pt
+  6. Cleans up temporary split directories
+
+CLI Arguments:
+  --dataset-root   default: "dataset_creation"
+  --mode           {audio|image|both}  default: "both"
+  --train-split    default: 0.70
+  --val-split      default: 0.15
+  --seed           default: 42
+  --epochs         default: 12
+  --batch-size     default: 16
+  --workers        default: 4
+
+
+================================================================================
+5. ML MODELS — DETAILED SPECIFICATIONS
+================================================================================
+
+------------------------------------------------------------
+AUDIO MODEL: SmallAudioCNN
+------------------------------------------------------------
+
+Input Shape: (B, 1, 64, T)
+  where B = batch size, 64 = n_mels, T = time frames (~250 for 4s audio)
+
+Architecture:
+  Layer 1:  Conv2d(1, 32, kernel=5, padding=2)
+              BatchNorm2d(32)
+              ReLU
+              MaxPool2d(2, 2)
+              Output: (B, 32, 32, T/2)
+
+  Layer 2:  Conv2d(32, 64, kernel=3, padding=1)
+              BatchNorm2d(64)
+              ReLU
+              MaxPool2d(2, 2)
+              Output: (B, 64, 16, T/4)
+
+  Layer 3:  Conv2d(64, 128, kernel=3, padding=1)
+              BatchNorm2d(128)
+              ReLU
+              MaxPool2d(2, 2)
+              Output: (B, 128, 8, T/8)
+
+  Layer 4:  Conv2d(128, 256, kernel=3, padding=1)
+              BatchNorm2d(256)
+              ReLU
+              AdaptiveMaxPool2d((4, 4))
+              Output: (B, 256, 4, 4)
+
+  Flatten:  (B, 4096)
+
+  FC 1:     Linear(4096, 256)
+              ReLU
+              Dropout(p=0.3)
+
+  FC 2:     Linear(256, n_classes)   [n_classes=2: real, fake]
+
+  Output:   (B, 2) logits
+
+Approximate Parameter Count: ~2.5 Million trainable parameters
+
+Training Hyperparameters:
+  Loss:        CrossEntropyLoss
+  Optimizer:   AdamW(lr=1e-4, weight_decay=1e-4)
+  Scheduler:   ReduceLROnPlateau(mode='max', factor=0.5, patience=2)
+  AMP:         Enabled (GradScaler on CUDA)
+
+Training Augmentation (SpecAugment):
+  TimeMasking(time_mask_param=24)    # Mask random temporal slices
+  FrequencyMasking(freq_mask_param=8) # Mask random mel frequency bands
+
+Inference:
+  Sliding window: 4s window, 2s hop (overlap-and-average)
+  Logits averaged across windows → Softmax → Final prediction
+
+
+------------------------------------------------------------
+IMAGE MODEL: ResNet18 (default) or EfficientNet-B0
+------------------------------------------------------------
+
+--- ResNet18 ---
+
+Input Shape: (B, 3, 224, 224)
+
+Architecture:
+  Stem:     Conv2d(3, 64, K=7, stride=2, pad=3)
+              BatchNorm2d + ReLU + MaxPool(3, stride=2)
+              Output: (B, 64, 56, 56)
+
+  Layer1:   2x BasicBlock(64  → 64)    Output: (B, 64,  56, 56)
+  Layer2:   2x BasicBlock(64  → 128)   Output: (B, 128, 28, 28)
+  Layer3:   2x BasicBlock(128 → 256)   Output: (B, 256, 14, 14)
+  Layer4:   2x BasicBlock(256 → 512)   Output: (B, 512,  7,  7)
+
+  Pool:     AdaptiveAvgPool2d((1, 1))  Output: (B, 512, 1, 1)
+  Flatten:  (B, 512)
+  FC:       Linear(512, n_classes)     [n_classes=2]
+  Output:   (B, 2) logits
+
+Approximate Parameter Count: ~11.2 Million
+Pretrained:  ImageNet-1K weights (torchvision)
+
+--- EfficientNet-B0 ---
+
+Input Shape: (B, 3, 224, 224)
+Architecture: MBConv blocks with compound scaling (depth/width/resolution)
+Final Layer: classifier[1] = Linear(1280, n_classes)
+Approximate Parameter Count: ~5.3 Million
+Pretrained:  ImageNet-1K weights (torchvision)
+Advantage:   Better parameter efficiency than ResNet18
+
+Training Hyperparameters (both architectures):
+  Loss:        CrossEntropyLoss
+  Optimizer:   AdamW(lr=1e-4, weight_decay=1e-4)
+  Scheduler:   ReduceLROnPlateau(mode='max', factor=0.5, patience=2)
+  AMP:         Enabled (GradScaler on CUDA)
+  Early Stop:  patience=4 epochs on val_acc
+
+Training Augmentation:
+  RandomHorizontalFlip
+  RandomRotation(degrees=10)
+  ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
+
+Validation/Inference Transforms:
+  Resize((224, 224))
+  ToTensor()
+  Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
+
+================================================================================
+6. TRAINING PIPELINES — DETAILED
+================================================================================
+
+------------------------------------------------------------
+IMAGE TRAINING: Image_Model_Training/Train_with_logs.py
+------------------------------------------------------------
+
+Features:
+  1. Rich Logging Infrastructure:
+       - Real-time console logging via Logger class
+       - CSV: per-epoch metrics (train_loss, train_acc, val_loss, val_acc, lr)
+       - CSV: per-batch metrics (batch_time, throughput, GPU memory)
+       - JSON: full metadata + training history
+
+  2. Evaluation Metrics (per epoch + final test):
+       - Accuracy (top-1)
+       - Macro Precision, Recall, F1-score
+       - Per-class Precision, Recall, F1-score
+       - Confusion Matrix
+       - ROC-AUC, Average Precision (binary classification)
+
+  3. Checkpoint Management:
+       - Saves best model when val_acc > best_val_acc
+       - Rolls back to best weights for final test evaluation
+       - Interrupt-safe (SIGINT/SIGTERM handlers)
+       - Checkpoint dict: {model_name, img_size, state_dict, classes,
+                           best_val_acc, best_epoch}
+
+  4. Performance Optimizations:
+       - torch.backends.cudnn.benchmark = True
+       - torch.set_float32_matmul_precision("high")  (TensorFloat-32)
+       - AMP with GradScaler
+       - Multi-worker DataLoaders (persistent_workers=True)
+       - Prefetch factor = 2 (double buffering)
+
+  5. SafeImageFolder (custom ImageFolder):
+       - Extends torchvision ImageFolder
+       - Returns blank RGB placeholder on corrupted image load
+       - Handles truncated/malformed JPEG files gracefully
+
+  6. Output Artifacts:
+       - best_model.pt                         — best checkpoint
+       - logs_img/epoch_log.csv                — per-epoch summary
+       - logs_img/batch_log.csv                — per-batch timing + memory
+       - logs_img/training_history_img.csv     — training progression
+       - logs_img/training_history_img.json    — full metadata + history
+
+
+------------------------------------------------------------
+AUDIO TRAINING: Audio_Model_Training/Train.py
+------------------------------------------------------------
+
+Features:
+  1. Robust Split Discovery:
+       - Searches for train|training, val|validation, test|testing folders
+       - Supports nested folder structures (one level deeper)
+       - Recursive walk as last resort fallback
+       - Dataset statistics logged at startup (class distribution per split)
+
+  2. Per-Run Results Organization:
+       - Creates timestamped subdirectory: results/{YYYY-MM-DD_HH-MM-SS}/
+       - All logs and checkpoints isolated per training run
+
+  3. Evaluation Metrics:
+       - Same full metrics suite as image training (accuracy, P/R/F1,
+         confusion matrix, ROC-AUC, AUPRC)
+
+  4. Graceful Failure Handling:
+       - safe_log() function logs even if logger not yet initialized
+       - Continues training if optional sklearn metrics unavailable
+       - Returns zero tensor on corrupted audio load
+
+  5. SafeAudioDataset (custom Dataset):
+       - Returns (mel_spectrogram_tensor, class_idx)
+       - Same preprocessing as inference pipeline
+       - Returns zero tensor on audio load failure
+       - SpecAugment applied during training only
+
+  6. Output Artifacts:
+       - results/{timestamp}/best_audio_model.pt
+       - results/{timestamp}/training_history.csv
+       - results/{timestamp}/training_history.json
+       - results/{timestamp}/audio_training_results.txt
+
+
+------------------------------------------------------------
+AUDIO DATASET BUILDER: Audio_Model_Training/dataset_creation.py
+------------------------------------------------------------
+
+Purpose: Creates unified, deduplicated dataset from multiple source directories
+
+Input Sources:
+  - archive/, Sample_Dataset/, Train/, Outside_Eval/
+  - Scans for MP3, WAV, FLAC, OGG, M4A, AAC files
+
+Deduplication:
+  - By (file_size, MD5_hash) pair
+  - Removes exact duplicates regardless of filename
+
+Split Strategy:
+  - Stratified 80% / 10% / 10% (train / val / test)
+  - Equal class representation per split
+
+Output: Unified_Audio_Dataset/train|val|test/{real,fake}/*.mp3
+
+
+================================================================================
+7. SIGNAL PROCESSING & MATHEMATICAL DETAILS
+================================================================================
+
+------------------------------------------------------------
+AUDIO: Mel-Spectrogram Computation
+------------------------------------------------------------
+
+Given: wav ∈ R^T (mono audio, resampled to 16 kHz)
+
+Step 1 — Segment:
+  wav' = wav[:64000]  (first 4 seconds = 64,000 samples)
+  or zero-pad if len(wav) < 64000
+
+Step 2 — Short-Time Fourier Transform (STFT):
+  X[n, k] = sum_{t=0}^{1023} wav'[n*256 + t] * w[t] * exp(-j*2*pi*k*t/1024)
+  where:
+    n      = window index (hop = 256 samples)
+    k      = frequency bin index (0..512)
+    w[t]   = Hann window of length 1024
+  Output shape: (1, 513, ~250) complex spectrogram
+
+Step 3 — Power Spectrum:
+  P[n, k] = |X[n, k]|^2
+
+Step 4 — Mel Filterbank Projection:
+  M_mel[n, m] = sum_{k} P[n, k] * Mel_filter[m, k]
+  where Mel_filter ∈ R^{64 x 513} maps 513 linear bins → 64 mel bins
+  Output shape: (1, 64, ~250) mel power spectrogram
+
+Step 5 — Log-DB Conversion:
+  S[n, m] = 10 * log10(max(M_mel[n, m], 1e-10) / ref_power)
+  ref_power = 1.0 (normalized)
+
+Step 6 — Per-Sample Standardization:
+  mu = mean(S)
+  sigma = std(S)
+  S_norm[n, m] = (S[n, m] - mu) / (sigma + 1e-6)
+  Output shape: (1, 64, ~250) standardized log-mel spectrogram
+
+Mel Scale Parameters:
+  n_fft         = 1024   (FFT window size)
+  hop_length    = 256    (frame shift = 16ms @ 16 kHz)
+  win_length    = 1024   (analysis window = 64ms @ 16 kHz)
+  n_mels        = 64     (mel frequency bins)
+  f_min         = 20 Hz
+  f_max         = 8000 Hz  (Nyquist @ 16 kHz)
+  Sample Rate   = 16000 Hz
+
+Resulting time resolution: 256/16000 = 16 ms per frame
+Resulting frequency resolution: 16000/(2*512) ≈ 15.6 Hz per linear bin
+
+
+------------------------------------------------------------
+IMAGE: Normalization (ImageNet-1K Statistics)
+------------------------------------------------------------
+
+x_norm[i, j, c] = (x[i, j, c] / 255.0 - mu[c]) / sigma[c]
+
+where:
+  mu    = [0.485, 0.456, 0.406]   (R, G, B channel means)
+  sigma = [0.229, 0.224, 0.225]   (R, G, B channel standard deviations)
+
+Empirically derived from ~1.2M training images in ImageNet-1K.
+Applied identically at training and inference time.
+
+
+------------------------------------------------------------
+LOSS FUNCTION: Cross-Entropy
+------------------------------------------------------------
+
+L = -sum_{c} y_c * log(p_c)
+
+where:
+  y_c   = one-hot ground truth label (1 for correct class, 0 otherwise)
+  p_c   = softmax probability = exp(logit_c) / sum_k exp(logit_k)
+  c     ∈ {real, fake}
+
+Binary case (n_classes=2): equivalent to binary cross-entropy with logits
+
+
+------------------------------------------------------------
+OPTIMIZER: AdamW
+------------------------------------------------------------
+
+Moment updates:
+  m_t = beta1 * m_{t-1} + (1 - beta1) * grad(f(theta_t))
+  v_t = beta2 * v_{t-1} + (1 - beta2) * grad(f(theta_t))^2
+
+Bias-corrected moments:
+  m_hat = m_t / (1 - beta1^t)
+  v_hat = v_t / (1 - beta2^t)
+
+Parameter update:
+  theta_{t+1} = theta_t - alpha * (m_hat / (sqrt(v_hat) + eps) + lambda * theta_t)
+
+Hyperparameters:
+  alpha  (lr)           = 1e-4  (training)
+                        = 1e-5  (fine-tuning — 10x lower)
+  beta1                 = 0.9
+  beta2                 = 0.999
+  eps                   = 1e-8
+  lambda (weight_decay) = 1e-4
+
+AdamW vs Adam: weight decay applied directly to parameters (decoupled),
+not to adaptive gradient estimate — better generalization.
+
+
+------------------------------------------------------------
+LEARNING RATE SCHEDULE: ReduceLROnPlateau
+------------------------------------------------------------
+
+  lr_new = lr * factor    when val_acc has not improved for 'patience' epochs
+
+  mode      = 'max'   (monitoring validation accuracy)
+  factor    = 0.5     (halve the LR on plateau)
+  patience  = 2       (wait 2 epochs before reducing)
+
+Combined with early stopping (patience=4 epochs on val_acc) for image models.
+
+
+------------------------------------------------------------
+SPECAUGMENT (Audio Training Augmentation)
+------------------------------------------------------------
+
+Applied to mel-spectrogram during training only:
+
+1. Time Masking:
+     Randomly masks T consecutive time steps: S[:, :, t0:t0+T] = 0
+     T drawn uniformly from [0, time_mask_param=24]
+     Equivalent to masking ~384ms of audio
+
+2. Frequency Masking:
+     Randomly masks F consecutive mel bins: S[:, f0:f0+F, :] = 0
+     F drawn uniformly from [0, freq_mask_param=8]
+     ~12.5% of mel frequency range masked
+
+Purpose: Forces model to learn robust spectrotemporal features
+         that do not rely on any single frequency or time region.
+         Original paper: Park et al. (2019), "SpecAugment: A Simple Data
+         Augmentation Method for Automatic Speech Recognition."
+
+
+================================================================================
+8. MODULE DEPENDENCY GRAPH
+================================================================================
+
+main.py (ENTRY POINT — CLI orchestration)
+  |
+  |--[LOADS]--> models_loader.py
+  |               |-- SmallAudioCNN          (audio model definition)
+  |               |-- _AudioPreproc          (preprocessing + inference)
+  |               |-- load_audio_model()     (checkpoint loading)
+  |               |-- predict_audio()        (sliding-window inference)
+  |               |-- load_image_model()     (ResNet18/EfficientNet loading)
+  |               `-- predict_image()        (single-frame inference)
+  |
+  |--[CALLS]---> video_io.py
+  |               `-- split_video_to_mp3_and_frames()
+  |                     |-- MoviePy VideoFileClip
+  |                     `-- ffmpeg subprocess (fallback)
+  |
+  |--[CALLS]---> Facedetection.py
+  |               |-- FaceDetector           (MediaPipe Tasks API wrapper)
+  |               `-- crop_to_224()          (bounding box crop + resize)
+  |
+  |--[CALLS]---> feedback.py (conditional on --no-feedback flag)
+  |               `-- run_feedback_interactive()
+  |                     |-- video_io.split...() [if recompute needed]
+  |                     |-- models_loader.predict_audio/image() [preview]
+  |                     `-- CSV logging
+  |
+  `--[CALLS]---> auto_retrain_monitor.py
+                  `-- maybe_auto_retrain()
+                        |-- _finetune_audio()
+                        |     `-- _AudioFeedbackDataset
+                        `-- _finetune_image()
+                              `-- _ImageFeedbackDataset
+
+Standalone Training:
+  Audio_Model_Training/Train.py
+    |-- SafeAudioDataset
+    |-- SmallAudioCNN (same architecture as models_loader.py)
+    `-- torchaudio (loading, resampling, mel-spectrogram, SpecAugment)
+
+  Image_Model_Training/Train_with_logs.py
+    |-- SafeImageFolder (custom ImageFolder with crash-safe loading)
+    `-- torchvision.models (ResNet18 or EfficientNet-B0, pretrained)
+
+Standalone Inference:
+  Audio_Model_Training/Run_model.py
+    `-- Same _AudioPreproc + SmallAudioCNN as main pipeline
+
+  Image_Model_Training/Testing.py
+    `-- GUI batch predictor (tkinter file dialog + CSV export)
+
+
+================================================================================
+9. COMMAND-LINE INTERFACES
+================================================================================
+
+------------------------------------------------------------
+MAIN INFERENCE + FEEDBACK: main.py
+------------------------------------------------------------
+
+python main.py <video> [options]
+
+Positional:
+  video              Path to input video file  [default: "test-1.mp4"]
+
+Options:
+  --out-dir DIR      Output directory          [default: "outputs"]
+  --fps FLOAT        Frame extraction rate     [default: 2.0]
+  --max-frames INT   Max face frames to sample [default: 100]
+  --topk INT         Top-k classes in output   [default: 3]
+  --seed INT         Random seed (-1 = random) [default: 42]
+  --no-feedback      Skip interactive labeling
+  --dataset-root DIR Feedback dataset location [default: "dataset_creation"]
+
+
+------------------------------------------------------------
+FULL RETRAINING: retrain.py
+------------------------------------------------------------
+
+python retrain.py [options]
+
+Options:
+  --dataset-root DIR   Location of feedback data  [default: "dataset_creation"]
+  --mode {audio|image|both}                        [default: "both"]
+  --train-split FLOAT  Train fraction             [default: 0.70]
+  --val-split FLOAT    Val fraction               [default: 0.15]
+  --seed INT           Random seed                [default: 42]
+  --epochs INT         Training epochs            [default: 12]
+  --batch-size INT     Batch size                 [default: 16]
+  --workers INT        DataLoader workers         [default: 4]
+
+
+------------------------------------------------------------
+AUTO FINE-TUNE MONITOR: auto_retrain_monitor.py
+------------------------------------------------------------
+
+python auto_retrain_monitor.py [options]
+
+Options:
+  --mode {audio|image|both}              [default: "both"]
+  --check              Check counts only, do not train
+  --force              Fine-tune even if below threshold
+  --min-audio INT      Min samples/class for audio   [default: 10]
+  --min-image INT      Min samples/class for image   [default: 20]
+
+
+------------------------------------------------------------
+AUDIO INFERENCE (STANDALONE): Audio_Model_Training/Run_model.py
+------------------------------------------------------------
+
+python Run_model.py <audio_file>
+python Run_model.py <folder/>     # batch inference on all audio in folder
+
+
+------------------------------------------------------------
+IMAGE TESTING (GUI): Image_Model_Training/Testing.py
+------------------------------------------------------------
+
+python Testing.py
+  -> Opens file dialog for multi-select of image files
+  -> Runs batch prediction
+  -> Exports CSV of results
+
+
+================================================================================
+10. OUTPUT ARTIFACTS
+================================================================================
+
+--- After main.py inference ---
+
+outputs/
+|-- audio/
+|   `-- <videoname>.mp3             Raw extracted audio
+|-- frames/
+|   `-- <videoname>/
+|       `-- frame_0001.jpg          Raw extracted frames
+|-- frames_cropped/
+|   `-- <videoname>/
+|       `-- frame_0001.jpg          Face-cropped 224x224 images
+|-- audio_result.txt                Audio prediction summary
+|-- image_result.txt                Image aggregate summary
+`-- image_aggregate_result.txt      Per-frame prediction details
+
+audio_result.txt contains:
+  - Predicted label (real/fake), confidence score
+  - Full probability distribution
+  - Inference timing
+
+image_result.txt contains:
+  - Mean top-1 confidence across all frames
+  - Total frames processed, total prediction time
+  - Average time per frame
+
+image_aggregate_result.txt contains:
+  - Per-frame: path, label, confidence, top-3 probabilities
+
+--- After feedback session ---
+
+dataset_creation/
+|-- audio/{real,fake}/*.mp3         Labeled audio samples
+|-- frames/{real,fake}/*.jpg        Labeled frame images
+|-- feedback_log.csv                Audit trail of all labeling decisions
+`-- .counters/*.txt                 Sequential file ID state
+
+--- After training ---
+
+Program_Workflow/
+|-- best_audio_model.pt             Best audio model checkpoint
+`-- best_model.pt                   Best image model checkpoint
+
+Checkpoint dict structure:
+  {
+    "model_name":   str,        # "resnet18" | "efficientnet_b0"
+    "img_size":     int,        # 224
+    "state_dict":   dict,       # model.state_dict()
+    "classes":      list,       # ["fake", "real"]
+    "best_val_acc": float,
+    "best_epoch":   int
+  }
+
+Audio checkpoint structure:
+  {
+    "state_dict":  dict,
+    "classes":     list,        # ["fake", "real"]
+    "n_classes":   int,
+    "sample_rate": int,         # 16000
+    "n_mels":      int,         # 64
+    "duration":    float,       # 4.0
+    "best_val_acc": float
+  }
+
+Training logs (Audio_Model_Training/results/{timestamp}/):
+  |-- best_audio_model.pt
+  |-- training_history.csv
+  |-- training_history.json
+  `-- audio_training_results.txt
+
+Training logs (Image_Model_Training/logs_img/):
+  |-- epoch_log.csv               Per-epoch: loss, acc, lr
+  |-- batch_log.csv               Per-batch: timing, throughput, GPU memory
+  |-- training_history_img.csv
+  `-- training_history_img.json   Full metadata + history
+
+Auto-retrain logs:
+  Program_Workflow/auto_retrain_log.json
+  Program_Workflow/model_backups/best_audio_model_{YYYYMMDD_HHMMSS}.pt
+  Program_Workflow/model_backups/best_model_{YYYYMMDD_HHMMSS}.pt
+
+
+================================================================================
+11. ESTIMATED PERFORMANCE CHARACTERISTICS
+================================================================================
+
+--- Inference Latency (estimated, NVIDIA RTX 3050) ---
+
+Component                  Estimated Latency
+--------------------------  -----------------
+Audio (4-second clip)       50–100 ms
+Image (single 224x224)      10–20 ms
+Face detection (per frame)  30–50 ms
+Video extraction (MoviePy)  2–5x real-time
+
+--- Memory Footprint ---
+
+Component                  Memory Usage
+--------------------------  ----------------
+Audio model weights         ~10 MB
+Image model weights         ~50 MB (ResNet18)
+Both models on GPU          ~60 MB VRAM
+Audio batch (B=16)          ~1.5 MB
+Image batch (B=16, 224x224) ~10 MB
+Training activations        ~100–200 MB
+
+--- Training Speed (per epoch, 1000 samples, B=16) ---
+
+Audio model:  30–60 seconds
+Image model:  20–40 seconds
+
+
+================================================================================
+12. DESIGN RATIONALE & KEY CHOICES
+================================================================================
+
+1. SLIDING WINDOW AUDIO INFERENCE
+   Why:    Handles variable-length audio without fixed-length truncation
+   How:    Overlapping 4s windows (2s hop), logits averaged across windows
+   Benefit: Captures full recording context; no information lost at boundaries
+
+2. FACE DETECTION + STANDARDIZED CROPPING
+   Why:    Models trained on 224x224 face crops need consistent input
+   How:    MediaPipe BlazeFace (fast, lightweight) + OpenCV crop/resize
+   Benefit: Eliminates background noise; ~10x faster than heavier detectors
+
+3. INDEPENDENT AUDIO & IMAGE LABELING
+   Why:    Audio and visual manipulation may not co-occur in all deepfakes
+   How:    Separate prompts for audio label and frames label
+   Benefit: Asymmetric labeling allows richer, more precise dataset curation
+
+4. FINE-TUNING vs FULL RETRAINING
+   Fine-tune (auto_retrain_monitor.py):
+     - Small datasets (10–50 samples)
+     - Warm start from existing checkpoint
+     - Frozen early layers (image model only)
+     - Lower LR (1e-5), fewer epochs (5)
+     - Avoids catastrophic forgetting of original training
+   Full retrain (retrain.py):
+     - Larger accumulated datasets
+     - Fresh start from ImageNet-1K weights
+     - Higher LR (1e-4), more epochs (12)
+     - Better when feedback distribution differs from original training
+
+5. COUNTER FILE SYSTEM
+   Why:    Prevent filename collisions across feedback sessions
+   How:    Plaintext file stores next available integer ID
+   Benefit: Deterministic naming (a1.mp3, a2.mp3, ...) enables audit trail
+
+6. SAFEIMAGEFOLDER / SAFEAUDIODATASET
+   Why:    Corrupted/truncated files in feedback datasets must not crash training
+   How:    try/except on load; return blank placeholder on failure
+   Benefit: Training continues without manual data cleaning
+
+7. IMAGENET-1K NORMALIZATION AT INFERENCE
+   Why:    Image models fine-tuned from ImageNet-pretrained weights
+   How:    Normalize with same mu/sigma used during ImageNet pretraining
+   Benefit: Transfer learning quality maintained; consistent preprocessing
+
+
+================================================================================
+13. VALIDATION & TESTING
+================================================================================
+
+Metrics Computed (both modalities):
+  - Top-1 Accuracy
+  - Macro Precision, Recall, F1-score (class-balanced)
+  - Per-class Precision, Recall, F1-score
+  - Confusion Matrix
+  - ROC-AUC (Area Under ROC Curve)          — binary only
+  - Average Precision (AUPRC)               — binary only
+
+Evaluation Sets:
+  - Held-out test set (10–15% of full dataset, never used in training)
+  - Validation set (10–15%, used for early stopping and LR scheduling)
+
+Tools:
+  - Image_Model_Training/Testing.py: GUI batch predictor with CSV export
+  - Audio_Model_Training/Run_model.py: CLI single/batch inference
+  - main.py: End-to-end inference with timing and per-frame breakdown
+
+
+================================================================================
+14. POTENTIAL EXTENSIONS FOR RESEARCH
+================================================================================
+
+Current Limitations:
+  - Binary classification only (real vs. fake)
+  - Fixed input: 224x224 images, 4-second audio segments
+  - Single face per frame (largest detected face only)
+  - No temporal modeling across video frames
+  - Independent audio/video fusion (no joint model)
+
+Possible Extensions:
+  1. Multi-class classification (real, CGI, face-swap, voice-clone subtypes)
+  2. Temporal models: 3D CNNs, LSTM/GRU over frame sequences, transformers
+  3. Attention mechanisms: Spatial attention over face regions
+  4. Ensemble fusion: Weighted combination of audio + image predictions
+  5. Active learning: Prioritize uncertain predictions for human feedback
+  6. Explainability: Grad-CAM saliency maps for image predictions
+  7. Compression artifact analysis: DCT-based frequency domain features
+  8. Cross-modal consistency: Detect audio-visual synchronization mismatch
+  9. Larger audio backbones: Wav2Vec2, HuBERT, or Whisper features
+  10. Larger image backbones: ViT, EfficientNet-V2, ConvNeXt
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
