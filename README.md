@@ -138,7 +138,7 @@ Deepfake_Detection-Feedbaack_System/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/Deepfake_Detection-Feedbaack_System.git
+https://github.com/gibinjgeo/Deepfake_Detection-Feedbaack_System.git
 cd Deepfake_Detection-Feedbaack_System
 ```
 
