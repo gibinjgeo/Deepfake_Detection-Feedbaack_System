@@ -1,0 +1,1048 @@
+================================================================================
+  DISTRIBUTED LEDGER SYSTEM (DLS/DLT/BLOCKCHAIN) INTEGRATION FEASIBILITY REPORT
+  Project: Deepfake Detection & Feedback System
+  Analyst: Senior Software Architect Review
+  Date: 2026-05-02
+  Branch: Dsl-Integration-testing
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — CURRENT PROJECT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.1  WHAT THE SYSTEM CURRENTLY DOES
+─────────────────────────────────────
+
+This is a human-in-the-loop deepfake detection system. It accepts a video file,
+analyzes both the visual face content and the audio track independently, outputs
+a real/fake prediction with confidence scores, collects user feedback labels, and
+uses those labels to automatically fine-tune the detection models over time.
+
+The system has two interfaces:
+  - CLI (main.py): Runs the full pipeline from the terminal.
+  - Web GUI (app.py): A Streamlit browser-based interface with the same pipeline.
+
+The end-to-end workflow is:
+
+  [Video Input]
+       │
+       ▼
+  video_io.py  ──── extracts audio (16 kHz mono MP3) + frames (JPG)
+       │
+       ▼
+  Facedetection.py ─── MediaPipe BlazeFace → 224×224 face crops
+       │
+       ▼
+  models_loader.py ─── SmallAudioCNN + ResNet18/EfficientNet-B0 inference
+       │
+       ▼
+  [Detection Result] ─── per-frame label + confidence, audio label + confidence
+       │
+       ▼
+  feedback.py ──────── user labels the video (real or fake), saves media samples
+       │
+       ▼
+  retrain_module.py ── auto fine-tunes models when enough new samples accumulate
+       │
+       ▼
+  retrain.py ───────── full retraining on accumulated feedback dataset
+
+
+1.2  MAIN MODULES AND FILES
+─────────────────────────────
+
+  FILE / MODULE                          ROLE
+  ─────────────────────────────────────  ─────────────────────────────────────
+  Program_Workflow/main.py               CLI orchestration entry point
+  Program_Workflow/app.py                Streamlit web GUI (600+ lines)
+  Program_Workflow/video_io.py           Audio + frame extraction via MoviePy/FFmpeg
+  Program_Workflow/Facedetection.py      MediaPipe BlazeFace face detection + crop
+  Program_Workflow/models_loader.py      Model definitions + inference (audio + image)
+  Program_Workflow/feedback.py           Interactive labeling, dataset builder
+  Program_Workflow/retrain_module.py     Threshold-based auto fine-tuning
+  Program_Workflow/retrain.py            Full retraining on feedback dataset
+  Audio_Model_Training/Train.py          Audio model training pipeline
+  Image_Model_Training/Train_with_logs.py  Image model training pipeline
+
+
+1.3  WHERE DATA, FEEDBACK, MODEL OUTPUTS, AND LOGS ARE STORED
+───────────────────────────────────────────────────────────────
+
+  CATEGORY              LOCATION                                FORMAT
+  ────────────────────  ──────────────────────────────────────  ─────────────
+  Frame extraction      outputs/frames/<video>/                 JPG files
+  Audio extraction      outputs/audio/                          MP3 files
+  Face crops            outputs/frames_cropped/<video>/         JPG files (224×224)
+  Detection results     image_result.txt                        Plain text
+  Per-frame results     image_aggregate_result.txt              Plain text
+  Audio results         audio_result.txt                        Plain text
+  Feedback dataset      dataset_creation/audio/{real,fake}/     MP3 files
+  Feedback dataset      dataset_creation/frames/{real,fake}/    JPG files
+  Feedback audit log    dataset_creation/feedback_log.csv       CSV (mutable flat file)
+  Counter state         dataset_creation/.counters/             Plain text
+  Audio model           Program_Workflow/best_audio_model.pt    PyTorch checkpoint
+  Image model           Program_Workflow/best_model.pt          PyTorch checkpoint
+  Model backups         model_backups/                          Timestamped .pt files
+  Auto-retrain log      auto_retrain_log.json                   JSON (mutable)
+  Training history      Audio_Model_Training/results/*/         CSV + JSON
+  Training history      Image_Model_Training/logs_img/          CSV + JSON
+  Face detector model   blaze_face_short_range.tflite           TFLite binary
+
+IMPORTANT OBSERVATION:
+  All data and audit records (feedback_log.csv, auto_retrain_log.json,
+  training_history.json, result .txt files) are stored as mutable local files.
+  There is no cryptographic integrity check, no tamper-evidence, and no
+  provenance chain. Any file can be silently modified or deleted without
+  detection. This is the exact gap that DLS can address.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — FEASIBILITY RATINGS (1 = Very Low, 10 = Very High)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  DIMENSION                    SCORE   REASONING
+  ───────────────────────────  ─────   ─────────────────────────────────────────
+  Technical Feasibility          7/10  The project has clean module boundaries and
+                                       clear data flow. Each stage (extract, detect,
+                                       label, retrain) has well-defined inputs and
+                                       outputs that can be hashed and anchored. No
+                                       fundamental technical barrier exists. The
+                                       gap is adding a blockchain write layer after
+                                       key events — a moderate but achievable task.
+
+  Performance Feasibility        5/10  Blockchain writes are slow (1–30 seconds for
+                                       public chains, milliseconds for private ones).
+                                       The ML pipeline itself is fast (50–100 ms for
+                                       audio, 10–20 ms per frame). The DLS write
+                                       should be asynchronous to avoid slowing down
+                                       inference. For batch or non-real-time use,
+                                       performance is acceptable.
+
+  Security Benefit               8/10  The current system has NO tamper-evidence
+                                       for audit logs, detection results, or model
+                                       versions. A blockchain layer would make
+                                       tampering detectable, which is high value
+                                       for forensic and legal use cases. The benefit
+                                       is concrete and meaningful.
+
+  Cost Feasibility               6/10  Depends heavily on choice of technology.
+                                       Public Ethereum gas fees can be significant
+                                       at scale. Polygon or Layer-2 solutions reduce
+                                       cost by 100–1000x. A private/permissioned
+                                       chain (Hyperledger Fabric) has infrastructure
+                                       cost but zero per-transaction fees. For
+                                       research/prototype scale, cost is acceptable.
+
+  Scalability Feasibility        6/10  Public blockchains process 7–30 transactions
+                                       per second. At high video analysis volumes,
+                                       this is a bottleneck. Solutions: batch
+                                       anchoring (commit a Merkle root of many
+                                       hashes in one transaction), or use a private
+                                       chain with higher throughput. Scalability
+                                       is solvable but requires design care.
+
+  Privacy/Legal Feasibility      5/10  This is the most complex dimension. Hashing
+                                       a video does not store the video, but if the
+                                       hash is linked to a person's identity or a
+                                       specific individual's face, it may constitute
+                                       personal data under GDPR. Immutability of
+                                       blockchain conflicts with the GDPR right to
+                                       erasure. This requires legal review for any
+                                       production deployment.
+
+  Research Value                 9/10  Combining deepfake detection with blockchain-
+                                       based audit trails is a genuinely novel
+                                       research direction. It addresses real-world
+                                       questions about trustworthy AI evidence,
+                                       forensic ML provenance, and decentralized
+                                       content authenticity — all active research
+                                       areas in 2026. Publication potential is high.
+
+  Implementation Difficulty      7/10  (Higher = Harder)
+                                       Basic hash-anchoring is easy (2–3 days of
+                                       work per module). Full smart-contract-based
+                                       verification is complex (weeks/months).
+                                       Decentralized identity is hardest. The
+                                       difficulty scales with ambition.
+
+  ─────────────────────────────────────────────────────────────────────────────
+  OVERALL DLS INTEGRATION FEASIBILITY:  7/10  — FEASIBLE WITH CLEAR DESIGN
+  ─────────────────────────────────────────────────────────────────────────────
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 & 4 — POSSIBLE DLS INTEGRATION POINTS (DETAILED ANALYSIS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Each integration point is analyzed with: problem, module, chain strategy,
+benefit, difficulty, risks, and a feasibility score.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 1 — VIDEO HASH ANCHORING
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    Before any analysis begins, a SHA-256 hash of the input video can be
+    written to the blockchain. This creates a timestamped, tamper-evident
+    certificate that a specific video existed at a specific moment in time
+    and was submitted for analysis. This is crucial for legal proceedings
+    where the opponent might claim the video was altered before analysis.
+
+  Which Module It Relates To:
+    main.py and app.py — the very first step before video_io.py is called.
+    The hash would be computed over the raw input video file bytes.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: SHA-256 hash (32 bytes) + timestamp + submission metadata.
+    OFF-CHAIN: The actual video file remains local or in secure storage.
+
+  Expected Benefit:
+    Proves which exact video file was analyzed. Enables forensic chain-of-
+    custody. Supports legal admissibility of deepfake detection evidence.
+    Useful for journalism, court cases, and content moderation disputes.
+
+  Technical Difficulty:
+    LOW. Python's hashlib can compute SHA-256 in milliseconds. Writing one
+    hash to a blockchain transaction is a standard operation.
+
+  Risks and Challenges:
+    - If the video contains faces of real people, even a hash could be
+      considered biometric data fingerprint under strict GDPR interpretation.
+    - A hash does not prove a video is genuine; it only proves it was not
+      changed after the hash was recorded.
+    - Re-encoding or small edits to a video will produce a completely
+      different hash, making comparison fragile.
+
+  Feasibility Score:  8/10
+  Recommendation:     STRONGLY RECOMMENDED — Best starting point for prototype.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 2 — DETECTION RESULT HASH ANCHORING
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    Currently, detection results are written to plain text files
+    (image_result.txt, image_aggregate_result.txt, audio_result.txt). These
+    files are fully mutable. Anyone with file system access can change the
+    result from "FAKE" to "REAL" without any trace. Anchoring the hash of
+    these result files to a blockchain makes such tampering detectable.
+
+  Which Module It Relates To:
+    main.py and app.py — immediately after save_image_results() and
+    save_audio_results() in models_loader.py are called and result files
+    are written.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: SHA-256 hash of the result file content + timestamp +
+    video hash reference (linking back to Integration Point 1).
+    OFF-CHAIN: The full result text file stays on local disk or secure storage.
+
+  Expected Benefit:
+    Creates an immutable record that links a specific video (its hash) to
+    a specific detection decision (its hash) at a specific time. If the
+    result file is later modified, the blockchain record will not match.
+    Third parties can verify the original conclusion without seeing the
+    raw video.
+
+  Technical Difficulty:
+    LOW. Hash the result file after it is written and submit one transaction.
+
+  Risks and Challenges:
+    - Result file format must be stable. Minor formatting changes would
+      invalidate the hash even if the conclusion is the same.
+    - A structured hash (e.g., hash of the JSON-serialized result object
+      rather than the text file) would be more robust and portable.
+
+  Feasibility Score:  8/10
+  Recommendation:     STRONGLY RECOMMENDED — Very low effort, high integrity gain.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 3 — FEEDBACK AUDIT LOG ON-CHAIN
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    The file dataset_creation/feedback_log.csv is the system's only record
+    of who labeled what and when. It is a mutable flat CSV file. A
+    dishonest operator could add fake labels, delete rows, or alter
+    timestamps. If feedback data is used to retrain models, poisoned labels
+    would corrupt the model without detection. Anchoring each feedback
+    session's record to a blockchain makes label manipulation detectable.
+
+  Which Module It Relates To:
+    feedback.py — specifically in run_feedback_interactive(), right after
+    the CSV row is written by the call to:
+      pd.DataFrame([row]).to_csv(log_path, mode="a", ...)
+    A hash of each appended row would be submitted to the chain.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: Hash of the feedback record (video hash, audio label,
+    frame label, timestamp, number of samples saved).
+    OFF-CHAIN: The actual audio/frame files remain in dataset_creation/.
+
+  Expected Benefit:
+    Creates a tamper-evident labeling history. Any insertion, deletion, or
+    modification of feedback_log.csv would be detectable by comparing the
+    CSV contents against the on-chain record sequence. Ensures dataset
+    integrity for retraining. Strengthens research reproducibility.
+
+  Technical Difficulty:
+    LOW-MEDIUM. The feedback.py module already writes structured CSV rows.
+    Adding a hash submission after each write is straightforward.
+
+  Risks and Challenges:
+    - The feedback record contains orig_video path, which may indirectly
+      identify individuals (e.g., a video file named after a person).
+    - If labels are crowd-sourced, a single identity per submission is
+      needed — currently the system has no user authentication.
+    - The counter file system (.counters/) would also need integrity checks
+      to prevent sequence number manipulation.
+
+  Feasibility Score:  7/10
+  Recommendation:     RECOMMENDED — High value for research integrity.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 4 — DATASET PROVENANCE TRACKING
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    Currently there is no record of where each audio or frame file in the
+    feedback dataset originated. A file named a1.mp3 in
+    dataset_creation/audio/fake/ could have come from any video at any
+    time. There is no way to trace it back to the original submission
+    without manually searching the CSV log. Blockchain-based provenance
+    records each sample's lineage: which video it came from, when it was
+    labeled, and what label was assigned.
+
+  Which Module It Relates To:
+    feedback.py — the _copy_to_dataset() logic that saves audio/frame
+    files into dataset_creation/.
+    Also dataset_creation.py in Audio_Model_Training/ which runs
+    deduplication with MD5 hashing (it already computes hashes!).
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: Hash of each individual audio/frame sample + label +
+    source video hash + labeler ID (if available).
+    OFF-CHAIN: The actual media files.
+
+  Expected Benefit:
+    Full lineage for every training sample. Enables auditing of model
+    behavior by tracing suspicious predictions back to the training samples
+    that caused them. Enables collaborative dataset building across
+    institutions with verifiable contribution records. Strong research
+    paper contribution: "provenance-tracked deepfake dataset."
+
+  Technical Difficulty:
+    MEDIUM. Requires hashing individual files, which is fast, but
+    submitting one transaction per sample would be expensive/slow at scale.
+    Solution: Batch-anchor a Merkle root of all samples saved in a session.
+
+  Risks and Challenges:
+    - Individual frame hashes could theoretically be used to reconstruct
+      or identify the original video (privacy risk for real samples).
+    - Hash per file approach at scale generates many transactions.
+      Merkle tree batching is needed.
+    - The deduplication in dataset_creation.py already uses MD5 hashes —
+      these could be reused or upgraded to SHA-256 for blockchain use.
+
+  Feasibility Score:  7/10
+  Recommendation:     CONDITIONALLY RECOMMENDED — Use Merkle batching, not
+                      per-file transactions.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 5 — MODEL VERSION TRACKING
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    The production models (best_audio_model.pt, best_model.pt) are
+    overwritten silently each time retraining improves the checkpoint.
+    Although model_backups/ stores timestamped copies, there is no
+    immutable record that links a specific model version to the training
+    data and feedback labels that produced it. Blockchain-based model
+    version tracking creates a permanent, ordered registry of every model
+    version: its hash, the dataset hash it was trained on, the accuracy it
+    achieved, and when it became active.
+
+  Which Module It Relates To:
+    retrain_module.py — specifically in _finetune_audio() and
+    _finetune_image(), right after the improved checkpoint is saved:
+      torch.save(ckpt, AUDIO_MODEL_PATH)
+    Also in retrain.py after full retraining completes.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: SHA-256 hash of the .pt file + model metadata (architecture
+    name, best_val_acc, epoch count, training dataset hash, timestamp).
+    OFF-CHAIN: The actual .pt binary file (can be hundreds of MB).
+
+  Expected Benefit:
+    Any model version can be independently verified. A third party can
+    download a model file, hash it, and check the chain to confirm it is
+    the exact model that was used at a specific point in time. Prevents
+    silent model rollbacks or unauthorized replacements. Supports
+    regulatory compliance for AI systems ("model card" on-chain).
+
+  Technical Difficulty:
+    LOW. torch.save() produces a deterministic file. SHA-256 it and write
+    one transaction. No structural changes to the training pipeline needed.
+
+  Risks and Challenges:
+    - Model files are large (50–800 MB). Only the hash goes on-chain;
+      the file itself must be stored securely off-chain (e.g., IPFS or
+      encrypted cloud storage with an on-chain pointer).
+    - If the model is proprietary, the hash alone reveals nothing about
+      its internals — this is a feature, not a bug.
+
+  Feasibility Score:  8/10
+  Recommendation:     STRONGLY RECOMMENDED — Extremely low effort, high
+                      reproducibility and accountability value.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 6 — MODEL RETRAINING AUDIT TRAIL
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    retrain_module.py writes auto_retrain_log.json, which records each
+    automatic fine-tuning event. This is a mutable JSON file. An operator
+    could delete or modify it. For regulatory-grade AI systems, every
+    model change event must be auditable. Blockchain anchoring makes the
+    sequence of retraining events immutable and verifiable.
+
+  Which Module It Relates To:
+    retrain_module.py — at the point where auto_retrain_log.json is
+    updated after each fine-tuning run. Also retrain.py for full retrains.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: Hash of the retrain log entry (trigger conditions, dataset
+    hash, old model hash, new model hash, accuracy delta, timestamp).
+    OFF-CHAIN: Full log file and model files.
+
+  Expected Benefit:
+    Proves that the model changed at a specific time due to specific data.
+    Enables forensic investigation if a model starts making wrong decisions
+    after a retraining event. Supports compliance with AI governance
+    frameworks (EU AI Act requires change logs for high-risk AI systems).
+
+  Technical Difficulty:
+    LOW. The log structure already exists in auto_retrain_log.json. Simply
+    hash each new log entry and write to chain.
+
+  Risks and Challenges:
+    - If retraining is frequent (every 10–20 new samples as per current
+      thresholds), transaction volume could grow. Batching is advisable.
+    - Linking the retrain event to the exact feedback records that triggered
+      it adds value but requires tracking which feedback_log.csv rows
+      contributed to the trigger.
+
+  Feasibility Score:  8/10
+  Recommendation:     STRONGLY RECOMMENDED — Directly addresses AI governance
+                      and regulatory audit requirements.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 7 — CHAIN-OF-CUSTODY FOR FORENSIC EVIDENCE
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    In legal or investigative contexts, deepfake detection results must
+    withstand challenge. The opponent's argument is: "The AI result was
+    manipulated by whoever ran the software." Chain-of-custody records
+    every handler who touched the evidence from submission to analysis,
+    and every system that processed it, creating a verifiable legal record.
+
+  Which Module It Relates To:
+    All modules — this is a cross-cutting concern. It starts at video
+    submission (main.py / app.py), includes every processing step
+    (video_io.py, Facedetection.py, models_loader.py), and ends at the
+    final result (image_result.txt, audio_result.txt).
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: A sequence of events — submit, extract, detect, analyze,
+    conclude — each with a timestamp and the hash of its input and output.
+    This forms a DAG (directed acyclic graph) of processing provenance.
+    OFF-CHAIN: All actual data.
+
+  Expected Benefit:
+    Produces a court-admissible audit trail. Answers: "Who submitted this
+    video? What version of the model analyzed it? Was the result modified?"
+    Potentially enables the system to serve as forensic evidence infrastructure
+    for journalism, law enforcement, and content moderation.
+
+  Technical Difficulty:
+    HIGH. Requires instrumenting every pipeline stage to emit events,
+    linking events by hash references, and coordinating across multiple
+    Python modules. The design effort is significant even if individual
+    transactions are simple.
+
+  Risks and Challenges:
+    - Legal frameworks for blockchain-based chain-of-custody are still
+      evolving. A court may not yet accept blockchain records as evidence.
+    - This assumes a trustworthy analysis environment. If the host machine
+      is compromised, the hashes are also compromised before they reach
+      the chain.
+    - Privacy: Linking faces, voices, and videos to a permanent public
+      record is extremely sensitive.
+
+  Feasibility Score:  6/10
+  Recommendation:     CONDITIONALLY RECOMMENDED — Only if legal/forensic use
+                      is the primary deployment context. Not for general use.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 8 — DECENTRALIZED IDENTITY FOR REVIEWERS/LABELERS
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    The current system has zero authentication for feedback labelers.
+    Anyone can run feedback.py and submit labels as any identity.
+    Decentralized Identifiers (DIDs) give each labeler a cryptographic
+    identity that they control, without a central authority. This makes
+    label attribution verifiable and enables reputation systems.
+
+  Which Module It Relates To:
+    feedback.py — all interactive prompts and the CSV log currently have
+    no labeler identity field at all.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: DID document anchoring + per-label attestation (signed by
+    labeler's private key).
+    OFF-CHAIN: Private key management (wallet), actual label files.
+
+  Expected Benefit:
+    Enables multi-labeler datasets with verifiable attribution. Supports
+    reputation tracking (a labeler who consistently disagrees with the
+    model consensus can be down-weighted). Enables decentralized peer
+    review of labeling decisions.
+
+  Technical Difficulty:
+    HIGH. Requires integrating a DID framework (W3C DID spec, Verifiable
+    Credentials), key management UX (wallets), and major additions to
+    feedback.py's interaction model.
+
+  Risks and Challenges:
+    - User adoption barrier is very high. Most users will not manage
+      cryptographic keys.
+    - Key loss = permanent identity loss, which is unacceptable in a
+      feedback system where retraining depends on the labels.
+    - Sybil attacks: One person creating many DIDs to flood the dataset.
+
+  Feasibility Score:  4/10
+  Recommendation:     NOT RECOMMENDED for initial integration. Consider only
+                      for a mature multi-institution deployment.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 9 — IPFS / OFF-CHAIN STORAGE WITH ON-CHAIN HASHES
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    Large media files (video, audio, model checkpoints) cannot be stored
+    on a blockchain. IPFS (InterPlanetary File System) is a content-
+    addressed distributed storage network where each file's address IS
+    its hash (CID — Content Identifier). This means storing a file's
+    IPFS CID on the blockchain simultaneously anchors the file's content
+    permanently without storing the file on-chain.
+
+  Which Module It Relates To:
+    - video_io.py outputs (MP3, frames) → store to IPFS, record CID
+    - dataset_creation/ folder → IPFS for media samples
+    - model_backups/ → IPFS for model checkpoint archives
+    - The existing MD5 deduplication in dataset_creation.py maps
+      naturally to IPFS's content-addressed model.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: IPFS CID (a 46-byte base58 string) + metadata.
+    OFF-CHAIN: Actual file content on IPFS nodes.
+
+  Expected Benefit:
+    Any file pinned to IPFS can be retrieved by anyone who has its CID.
+    This enables decentralized dataset sharing for research. A published
+    research paper can include on-chain CIDs for every dataset file,
+    making results perfectly reproducible. Eliminates dependency on
+    centralized cloud storage.
+
+  Technical Difficulty:
+    MEDIUM. Requires running or connecting to an IPFS node. Python library
+    py-ipfs-http-client or ipfshttpclient makes uploads straightforward.
+    Pinning services (Pinata, Web3.Storage) handle availability without
+    self-hosting.
+
+  Risks and Challenges:
+    - IPFS does not guarantee availability without pinning. If no node
+      pins the file, it may disappear over time.
+    - Pinning service costs money at scale.
+    - GDPR: Files on IPFS are practically irremovable once distributed.
+      Real faces in frame files are a direct privacy conflict.
+    - For model files (hundreds of MB), IPFS upload can be slow.
+
+  Feasibility Score:  6/10
+  Recommendation:     CONDITIONALLY RECOMMENDED — Best applied to model
+                      checkpoints and anonymized datasets, NOT raw face crops.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 10 — SMART-CONTRACT-BASED VERIFICATION
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    Today, verification of a detection result requires trusting the system
+    operator. A smart contract can encode the verification logic: given a
+    video hash and a result hash, check whether they match the on-chain
+    record. Any third party (journalist, court, platform) can run this
+    verification without trusting any central party.
+
+  Which Module It Relates To:
+    This is a verification layer above all existing modules. It would
+    interact with the on-chain records created by Integration Points 1
+    and 2 (video hash + result hash).
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: The verification smart contract + all hash records.
+    OFF-CHAIN: The actual inference pipeline (Python ML code).
+
+  Expected Benefit:
+    Trustless verification. The system's conclusions become verifiable by
+    the public. High credibility for media forensics and legal use cases.
+
+  Technical Difficulty:
+    VERY HIGH. Requires writing and auditing a Solidity (or similar)
+    smart contract, deploying it, integrating it with the Python pipeline,
+    and testing it thoroughly. Smart contract bugs are permanent.
+
+  Risks and Challenges:
+    - Smart contract bugs can lock funds or corrupt records permanently.
+    - Gas costs for deployment and calls add up.
+    - Overkill if the only need is tamper-evidence rather than trustless
+      public verification.
+    - The ML model itself is not on-chain, so verification only covers
+      "was this specific result produced by this specific analysis run"
+      not "is the model's decision correct."
+
+  Feasibility Score:  5/10
+  Recommendation:     NOT RECOMMENDED for initial prototype. Revisit only
+                      after hash anchoring infrastructure is proven.
+
+
+────────────────────────────────────────────────────────────────────────────────
+INTEGRATION POINT 11 — TOKEN / REWARD SYSTEM FOR FEEDBACK CONTRIBUTORS
+────────────────────────────────────────────────────────────────────────────────
+
+  What Problem It Solves:
+    There is currently no incentive for users to provide high-quality,
+    consistent labels. A token-based reward system could distribute
+    cryptocurrency or utility tokens to users who submit labels that
+    agree with expert consensus or improve model accuracy.
+
+  Which Module It Relates To:
+    feedback.py — post-label submission logic.
+    retrain_module.py — would need to evaluate label quality and trigger
+    reward payouts based on whether the retrained model improved.
+
+  On-Chain or Off-Chain:
+    ON-CHAIN: Token smart contract, reward ledger, contribution records.
+    OFF-CHAIN: ML evaluation pipeline, model training.
+
+  Expected Benefit:
+    Incentivizes community participation. Scales dataset collection.
+    Gamifies the labeling process.
+
+  Technical Difficulty:
+    VERY HIGH. Token contracts require careful security auditing (reentrancy,
+    overflow, access control). Reward distribution logic is complex.
+    Sybil resistance is unsolved.
+
+  Risks and Challenges:
+    - Regulatory risk: Tokens may be classified as securities in many
+      jurisdictions (SEC/FCA/etc.), triggering heavy compliance requirements.
+    - Label gaming: Users can submit many fake but confident-looking labels
+      to farm tokens without helping the model.
+    - Key management for average users is a high adoption barrier.
+    - If tokens have real value, the system becomes a financial product,
+      far outside the scope of an ML research project.
+    - Could incentivize adversarial labeling to deliberately degrade the
+      model in favor of a competitor.
+
+  Feasibility Score:  3/10
+  Recommendation:     NOT RECOMMENDED — Regulatory and security risks
+                      far outweigh the benefit at this stage.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — ARCHITECTURE RECOMMENDATION (HIGH-LEVEL HYBRID DESIGN)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The recommended architecture keeps the ML pipeline completely off-chain and
+uses the blockchain only as an immutable hash registry and audit log.
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                      OFF-CHAIN (Local / Cloud)                          │
+  │                                                                         │
+  │  [Input Video] ──► video_io.py ──► Facedetection.py ──► models_loader  │
+  │       │                │                  │                   │         │
+  │   SHA-256(video)   SHA-256(frames)   SHA-256(crops)   [Detection Result]│
+  │       │                                               SHA-256(result)   │
+  │       │                                                       │         │
+  │  feedback.py ──────────────────────────────────────────────────────     │
+  │       │                                                                 │
+  │  SHA-256(feedback record)                                               │
+  │       │                                                                 │
+  │  retrain_module.py / retrain.py                                         │
+  │       │                                                                 │
+  │  SHA-256(new model checkpoint) + retrain event metadata                 │
+  │                                                                         │
+  └──────────────────────┬──────────────────────────────────────────────────┘
+                         │
+                         │  Async hash submissions (non-blocking)
+                         ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                    ON-CHAIN (DLT Layer)                                 │
+  │                                                                         │
+  │  ┌──────────────────────────────────────────────────────────────────┐   │
+  │  │  HASH REGISTRY LEDGER                                            │   │
+  │  │                                                                  │   │
+  │  │  Event 1: video_hash, timestamp, submitter_id                   │   │
+  │  │  Event 2: result_hash, video_hash_ref, model_version_hash       │   │
+  │  │  Event 3: feedback_hash, video_hash_ref, label, session_id      │   │
+  │  │  Event 4: model_hash, retrain_trigger_hash, accuracy_delta      │   │
+  │  │  Event 5: retrain_audit_hash, dataset_merkle_root, timestamp    │   │
+  │  └──────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+                         │
+                         │  Optional: IPFS pointers for large files
+                         ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │              OFF-CHAIN CONTENT-ADDRESSED STORAGE (IPFS)                 │
+  │   model_backups/*.pt  │  dataset_creation/ samples  │  result text files│
+  └─────────────────────────────────────────────────────────────────────────┘
+
+KEY DESIGN PRINCIPLES:
+  1. The blockchain NEVER stores videos, audio, faces, or model weights.
+     It stores only hashes (32–64 bytes) and minimal metadata.
+
+  2. Blockchain writes are ASYNCHRONOUS. A queue collects hash events
+     during pipeline execution and submits them in the background.
+     Inference latency is NOT affected.
+
+  3. Events are LINKED by hash references. result_hash references
+     video_hash, feedback_hash references video_hash, model_hash
+     references the dataset's Merkle root. This creates a verifiable
+     DAG of provenance.
+
+  4. Merkle tree batching is used for dataset samples. Instead of one
+     transaction per frame or audio file, one transaction per feedback
+     session is submitted, containing the Merkle root of all samples
+     in that session.
+
+  5. A lightweight "DLS Connector" module (a new Python module, not
+     modifying existing files) handles all blockchain interactions.
+     Existing modules call connector.emit_event(event_type, payload)
+     and the connector handles batching, retries, and chain selection.
+
+  6. All data written on-chain is hashed content ONLY — no raw PII,
+     no file paths that reveal identity, no directly identifying data.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — RECOMMENDED DLS TECHNOLOGIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌──────────────────────────┬────────┬────────┬─────────┬────────────┬──────────┐
+│ Technology               │Throughput│ Cost  │ Privacy │ Dev Effort │ Best For │
+├──────────────────────────┼────────┼────────┼─────────┼────────────┼──────────┤
+│ Hyperledger Fabric       │ High   │ None   │ High    │ High       │ Enterprise│
+│ (private permissioned)   │(1000+  │(no gas)│(private │(complex    │ or multi-│
+│                          │ TPS)   │        │ network)│ setup)     │ institute│
+├──────────────────────────┼────────┼────────┼─────────┼────────────┼──────────┤
+│ Ethereum (public)        │ Low    │ High   │ Low     │ Medium     │ Public   │
+│                          │(15 TPS)│(gas    │(fully   │            │ verify / │
+│                          │        │ fees)  │ public) │            │ tokens   │
+├──────────────────────────┼────────┼────────┼─────────┼────────────┼──────────┤
+│ Polygon (L2 / sidechain) │ Medium │ Low    │ Low     │ Medium     │ Research │
+│                          │(65+TPS)│(~$0.001│(public) │(same as    │ prototype│
+│                          │        │/tx)    │         │ Ethereum)  │ on budget│
+├──────────────────────────┼────────┼────────┼─────────┼────────────┼──────────┤
+│ IPFS                     │ N/A    │ Low    │ Medium  │ Low        │ Off-chain│
+│ (content storage only,   │        │(pin    │(public  │            │ model &  │
+│  not a blockchain)       │        │ fees)  │ CIDs)   │            │ dataset  │
+│                          │        │        │         │            │ storage  │
+├──────────────────────────┼────────┼────────┼─────────┼────────────┼──────────┤
+│ Private permissioned     │ High   │ None   │ High    │ Low-Medium │ Single-  │
+│ chain (e.g. Quorum,      │        │        │         │            │ org, fast│
+│ Ganache for dev)         │        │        │         │            │ prototype│
+├──────────────────────────┼────────┼────────┼─────────┼────────────┼──────────┤
+│ Public blockchain        │ N/A    │ Low    │ Medium  │ Low        │ Notariza-│
+│ anchoring (Bitcoin OP    │        │        │         │            │ tion of  │
+│ RETURN / Ethereum event) │        │        │         │            │ batch    │
+│                          │        │        │         │            │ Merkle   │
+│                          │        │        │         │            │ roots    │
+└──────────────────────────┴────────┴────────┴─────────┴────────────┴──────────┘
+
+RECOMMENDATION BY PROJECT PHASE:
+
+  Phase 1 — Prototype / Research:
+    Use a LOCAL private chain (Ganache / Hardhat) or a test network
+    (Polygon Mumbai testnet). Zero cost, easy setup, full control.
+    Develop and test all hash anchoring logic here first.
+
+  Phase 2 — Multi-Institution Research:
+    Deploy Hyperledger Fabric with 2–3 peer nodes (one per institution).
+    High privacy, no gas fees, permissioned access, high throughput.
+    Best for a federated research dataset provenance use case.
+
+  Phase 3 — Public Verification / Open Science:
+    Anchor daily Merkle roots of all events to Polygon mainnet.
+    Cost: ~$0.001 per day-batch transaction. Public verifiability.
+    Keep all detailed records on the private Fabric network.
+
+  IPFS: Use throughout all phases for model checkpoint and dataset
+  archival (excluding raw face images — privacy concern).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — CHALLENGES AND LIMITATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  7.1  BLOCKCHAIN LATENCY
+  ─────────────────────────
+  Public blockchain transaction confirmation: 12 seconds (Ethereum), 2
+  seconds (Polygon). A private Fabric network: milliseconds. This is
+  acceptable only if blockchain writes are asynchronous. The ML inference
+  pipeline (50–100 ms total) must not wait for blockchain confirmation.
+  Solution: fire-and-forget with a local buffer and a background writer.
+
+  7.2  GAS / TRANSACTION COST
+  ─────────────────────────────
+  Ethereum gas for a simple storage transaction: ~$0.50–$5 (mainnet, 2026
+  pricing varies). At high volume (thousands of videos per day), this is
+  prohibitive. Polygon reduces this to fractions of a cent. Better still,
+  Merkle root batching reduces the chain footprint to one transaction per
+  time window regardless of volume. For a research prototype, test networks
+  are free.
+
+  7.3  PRIVACY RISK
+  ──────────────────
+  Even storing SHA-256 hashes of face-containing videos creates a
+  permanent, public, irrevocable record. If an adversary has a copy of
+  the same video, they can compute the same hash and confirm whether it
+  was processed by this system. This is a privacy-by-correlation attack.
+  Mitigation: use keyed hashes (HMAC with a private key), use zero-
+  knowledge proofs, or restrict on-chain records to a permissioned chain.
+
+  7.4  LARGE MEDIA FILE STORAGE
+  ───────────────────────────────
+  A single MP4 video can be 100 MB–several GB. Audio files and frame
+  folders add up. These CANNOT go on any blockchain. IPFS is the natural
+  complement, but IPFS does not guarantee availability. For research
+  purposes, a centralized storage (S3, institutional server) with
+  IPFS-compatible content addressing (CID-based naming) is a practical
+  middle ground.
+
+  7.5  GDPR AND DATA PROTECTION
+  ───────────────────────────────
+  The EU General Data Protection Regulation (GDPR) grants individuals the
+  "right to erasure" (Article 17). If a video hash on a blockchain can be
+  linked to a natural person's identity, it may constitute personal data.
+  Blockchain's immutability directly conflicts with erasure. Possible
+  mitigations: commitment schemes (hash of (data + random nonce), keep
+  nonce off-chain — erasure is achieved by destroying the nonce), legal
+  basis analysis (research/public interest exemptions), or jurisdictional
+  deployment outside GDPR scope.
+
+  7.6  SMART CONTRACT SECURITY
+  ──────────────────────────────
+  Smart contracts are immutable once deployed. A bug in verification logic
+  could permanently corrupt the verification record or lock value. Any
+  contract storing value (tokens) requires a formal security audit by
+  blockchain security professionals. Even simple hash-registry contracts
+  should be reviewed. The cost of auditing a contract (professional fees,
+  time) must be factored into the implementation plan.
+
+  7.7  ADDED SYSTEM COMPLEXITY
+  ──────────────────────────────
+  Adding a blockchain layer requires: new dependencies (web3.py, IPFS
+  client, Fabric SDK), a running blockchain node or cloud service,
+  key management (private keys for transaction signing), error handling
+  for chain unavailability, and a new mental model for developers
+  unfamiliar with DLT. The project currently has no authentication layer —
+  adding blockchain identity on top of no-auth infrastructure is a large
+  architectural jump.
+
+  7.8  IS BLOCKCHAIN OVERKILL FOR SOME PARTS?
+  ─────────────────────────────────────────────
+  Yes. Explicitly calling this out for intellectual honesty:
+
+  - Detection result tamper-evidence: A simple SQLite database with a
+    cryptographic append-only journal (like SQLCipher's WAL mode) would
+    solve this without blockchain complexity. Blockchain is overkill if
+    there is only one operator.
+
+  - Model version tracking: A Git repository for model files with GPG-
+    signed tags achieves the same tamper-evidence without a blockchain.
+
+  - Feedback audit log: An append-only, hash-chained local log file (like
+    a Merkle-linked event log) provides tamper-evidence without a chain.
+
+  Blockchain adds genuine, irreplaceable value ONLY when:
+    (a) Multiple mutually distrusting parties need to share a record, OR
+    (b) Public verifiability without a trusted third party is required, OR
+    (c) Smart-contract-based automation is needed (automatic verification,
+        token rewards, multi-signature approvals).
+
+  For a single-operator research project, simpler cryptographic audit
+  logs solve most problems. Blockchain becomes the right tool when the
+  project is deployed across multiple institutions or to the public.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — FINAL RECOMMENDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  IS DLS INTEGRATION FEASIBLE?
+  ──────────────────────────────
+  YES — with realistic scope. The project's modular architecture, clean
+  data flow, and well-defined stage boundaries make it technically ready
+  for DLS augmentation. The system does not need to be restructured; a
+  thin async "DLS Connector" module can instrument existing checkpoints.
+  Feasibility is conditional on:
+    (a) Using a private/permissioned chain for Phase 1.
+    (b) Keeping blockchain writes asynchronous and non-blocking.
+    (c) Storing only hashes and minimal metadata on-chain.
+    (d) Conducting legal review before any public deployment.
+
+
+  WHICH 3 INTEGRATION IDEAS ARE STRONGEST?
+  ──────────────────────────────────────────
+
+  ★ RANK 1 — MODEL VERSION TRACKING (Integration Point 5)
+    Feasibility: 8/10
+    Why strongest: Lowest implementation effort, highest immediate
+    research value. Simply hash best_audio_model.pt and best_model.pt
+    every time retrain_module.py saves an improved checkpoint. No
+    structural changes to existing code. Creates an immutable model
+    lineage registry. Directly supports reproducibility and AI governance.
+    Start here. Estimated prototype time: 1–2 days.
+
+  ★ RANK 2 — MODEL RETRAINING AUDIT TRAIL + DETECTION RESULT HASHING
+             (Integration Points 2 and 6, built together)
+    Feasibility: 8/10
+    Why second: These two are tightly coupled. Once a detection run
+    completes (result files written), hash them. Once a retrain completes
+    (auto_retrain_log.json updated), hash the event. Together they create
+    a continuous record: "model version X produced this detection result
+    at this time, and was later updated because of this retraining event."
+    This chain of records has strong research publication value.
+    Estimated prototype time: 2–3 days.
+
+  ★ RANK 3 — FEEDBACK AUDIT LOG INTEGRITY (Integration Point 3)
+    Feasibility: 7/10
+    Why third: The feedback_log.csv is the most sensitive integrity
+    target in the system. If label data is poisoned, model behavior is
+    directly compromised. Hashing each feedback session and writing to
+    an append-only chain makes such attacks immediately detectable.
+    This directly addresses the "training data poisoning" threat that is
+    a well-known vulnerability of human-in-the-loop ML systems.
+    Estimated prototype time: 2–3 days.
+
+
+  WHICH IDEAS SHOULD BE AVOIDED (FOR NOW)?
+  ──────────────────────────────────────────
+
+  ✗  Token / reward system (Integration Point 11)
+     Regulatory risk (securities law), security complexity, and label
+     gaming risk make this inadvisable unless the project pivots to a
+     formal blockchain application with legal counsel.
+
+  ✗  Smart-contract-based verification (Integration Point 10)
+     Far too complex and risky for an initial prototype. Build the hash
+     registry first; smart contract verification adds very little beyond
+     what signed transactions already provide.
+
+  ✗  Decentralized identity for labelers (Integration Point 8)
+     The system does not yet have basic authentication. Adding DID-based
+     identity is several architectural layers ahead of where the project
+     currently stands.
+
+  ✗  Raw video/frame IPFS upload (partial exclusion in Integration Point 9)
+     Uploading face-containing images to a public distributed network has
+     unacceptable GDPR and privacy implications. IPFS is appropriate for
+     model checkpoints and anonymized data only.
+
+
+  WHAT SHOULD BE DONE FIRST AS A PROTOTYPE?
+  ────────────────────────────────────────────
+
+  PROTOTYPE PLAN — 3 STAGES (NO EXISTING CODE CHANGES):
+
+  Stage 1: Local Hash-Chain Logger (1 week)
+    Create a new Python module: dls_connector.py
+    Use a local append-only SQLite database as a simulated blockchain.
+    Each record: (event_type, payload_hash, timestamp, linked_event_id).
+    Instrument retrain_module.py (call connector from main.py wrapper)
+    and feedback.py (call after CSV write).
+    Goal: Prove the concept works, measure performance impact, design the
+    event schema. No real blockchain required at this stage.
+
+  Stage 2: Private Test Chain (2–3 weeks)
+    Migrate dls_connector.py to write to a local Hardhat or Ganache
+    Ethereum test node (free, runs locally).
+    Deploy a minimal Solidity contract: mapping(bytes32 => Event).
+    Use web3.py for all Python-to-chain calls.
+    Test all 3 recommended integration points against the test chain.
+    Goal: Real blockchain integration, zero cost, full local control.
+
+  Stage 3: Public Anchoring (future milestone)
+    Aggregate all daily events into a Merkle tree.
+    Submit one Merkle root per day to Polygon testnet (free) or mainnet
+    (~$0.001 per transaction at 2026 Polygon pricing).
+    Publish the Merkle root and a verification tool in the research paper.
+    Goal: Publicly verifiable research record at near-zero cost.
+
+
+  FINAL NOTE FOR RESEARCH VALUE:
+  ─────────────────────────────────
+  The combination of deepfake detection + blockchain audit trail is a
+  genuinely novel research contribution as of 2026. The specific aspects
+  that are publishable:
+
+    1. A provenance-tracked feedback loop: labeling → dataset → retrain →
+       model version, all with on-chain audit records.
+    2. An immutable chain linking a submitted video to its detection result
+       to the model version that produced it — enabling forensic replay.
+    3. A framework for trustworthy AI in content authenticity verification
+       that is deployable across multiple institutions without a central
+       trusted authority.
+
+  This project has the architecture, the data flows, and the use case to
+  support a strong DLS integration paper. The recommended starting point
+  is small, safe, and high-value: model version tracking + retraining
+  audit trail first, then feedback integrity, then public anchoring.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTEGRATION POINT SUMMARY TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  #   INTEGRATION POINT                   SCORE   DIFFICULTY   RECOMMENDATION
+  ─   ─────────────────────────────────   ─────   ──────────   ──────────────
+  1   Video hash anchoring                 8/10   Low          Recommended
+  2   Detection result hash anchoring      8/10   Low          Strongly Recommended ★
+  3   Feedback audit log integrity         7/10   Low-Med      Recommended ★
+  4   Dataset provenance tracking          7/10   Medium       Conditional
+  5   Model version tracking               8/10   Low          Strongly Recommended ★
+  6   Model retraining audit trail         8/10   Low          Strongly Recommended ★
+  7   Chain-of-custody for evidence        6/10   High         Conditional (legal use)
+  8   Decentralized identity / labelers    4/10   High         Not Recommended
+  9   IPFS / off-chain storage (models)    6/10   Medium       Conditional (models only)
+  10  Smart-contract verification          5/10   Very High    Not Recommended now
+  11  Token / reward system                3/10   Very High    Not Recommended
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+END OF REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
